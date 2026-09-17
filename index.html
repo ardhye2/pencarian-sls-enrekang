@@ -200,7 +200,10 @@
 
   <div class="sync-bar">
     <span id="syncStatus" class="sync-status offline">⚪ Mode offline (data bawaan file)</span>
-    <button class="btn outline admin-only" id="syncBtn" style="padding:5px 11px;">⚙ Sambungkan Google Sheets</button>
+    <span class="action-row">
+      <button class="btn outline" id="refreshBtn" style="padding:5px 11px;">🔄 Muat Ulang Data</button>
+      <button class="btn outline admin-only" id="syncBtn" style="padding:5px 11px;">⚙ Sambungkan Google Sheets</button>
+    </span>
   </div>
 
   <div class="stats-row" id="statsRow"></div>
@@ -811,6 +814,8 @@ const DEFAULT_APPS_SCRIPT_URL = 'PASTE_URL_WEB_APP_ANDA_DI_SINI';
 let APPS_SCRIPT_URL = localStorage.getItem(SYNC_KEY) || DEFAULT_APPS_SCRIPT_URL;
 const syncStatusEl = document.getElementById('syncStatus');
 const syncBtn = document.getElementById('syncBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+let isSyncing = false;
 
 function setSyncStatus(state, msg){
   syncStatusEl.className = 'sync-status ' + state;
@@ -837,6 +842,11 @@ async function fetchSheetRows(sheetName){
 
 async function syncFromSheets(silent){
   if(!APPS_SCRIPT_URL){ setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); return; }
+  if(isSyncing) return; // hindari sinkron dobel bertumpuk
+  isSyncing = true;
+  refreshBtn.disabled = true;
+  const oldRefreshLabel = refreshBtn.textContent;
+  refreshBtn.textContent = '🔄 Memuat...';
   if(!silent) setSyncStatus('offline','🔄 Menyinkronkan data dari Google Sheets...');
   try {
     const [slsRows, desaRows] = await Promise.all([fetchSheetRows('sls'), fetchSheetRows('desa')]);
@@ -857,6 +867,10 @@ async function syncFromSheets(silent){
   } catch(err){
     console.error(err);
     setSyncStatus('error', '🔴 Gagal menyinkronkan. Periksa URL Apps Script / izin akses, lalu coba lagi.');
+  } finally {
+    isSyncing = false;
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = oldRefreshLabel;
   }
 }
 
@@ -892,6 +906,28 @@ syncBtn.addEventListener('click', ()=>{
       setSyncStatus('offline','⚪ Mode offline (data bawaan file)');
     }
   });
+});
+
+refreshBtn.addEventListener('click', ()=>{
+  if(!APPS_SCRIPT_URL){
+    alert('Belum tersambung ke Google Sheets. Data yang tampil adalah data bawaan file (mode offline).');
+    return;
+  }
+  syncFromSheets(false);
+});
+
+// Auto-refresh berkala setiap 60 detik (senyap, tidak mengganggu tampilan) selagi tab ini terbuka.
+const AUTO_REFRESH_MS = 60000;
+setInterval(()=>{
+  if(APPS_SCRIPT_URL && document.visibilityState === 'visible'){
+    syncFromSheets(true);
+  }
+}, AUTO_REFRESH_MS);
+// Saat pengguna kembali membuka tab ini (misalnya setelah minimize lama), langsung sinkron ulang.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && APPS_SCRIPT_URL){
+    syncFromSheets(true);
+  }
 });
 
 /* ---------- MODAL (TAMBAH / EDIT) ---------- */
@@ -1014,7 +1050,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 </script>
 </body>
