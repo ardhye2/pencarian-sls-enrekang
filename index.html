@@ -229,11 +229,6 @@
 
     <div class="breadcrumb" id="slsBreadcrumb"></div>
 
-    <div class="map-box">
-      <div class="map-title">Peta Titik Dusun/SLS (sesuai hasil pencarian)</div>
-      <div class="leaflet-map" id="slsMap"></div>
-    </div>
-
     <div class="count-line">
       <span id="slsCount"></span>
       <span class="action-row">
@@ -263,6 +258,11 @@
         <tbody id="slsBody"></tbody>
       </table>
     </div>
+
+    <div class="map-box">
+      <div class="map-title">Peta Titik Dusun/SLS (sesuai hasil pencarian)</div>
+      <div class="leaflet-map" id="slsMap"></div>
+    </div>
   </div>
 
   <!-- PANEL 2: DESA -->
@@ -281,11 +281,6 @@
     </div>
 
     <div class="breadcrumb" id="desaBreadcrumb"></div>
-
-    <div class="map-box">
-      <div class="map-title">Peta Titik Koordinat Desa (sesuai hasil pencarian)</div>
-      <div class="leaflet-map" id="desaMap"></div>
-    </div>
 
     <div class="count-line">
       <span id="desaCount"></span>
@@ -318,6 +313,11 @@
         </thead>
         <tbody id="desaBody"></tbody>
       </table>
+    </div>
+
+    <div class="map-box">
+      <div class="map-title">Peta Titik Koordinat Desa (sesuai hasil pencarian)</div>
+      <div class="leaflet-map" id="desaMap"></div>
     </div>
   </div>
 
@@ -774,6 +774,9 @@ document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPane
 
 /* ---------- ROLE / LOGIN ---------- */
 const ROLE_PASSWORDS = { admin: 'admin123', bps7316: 'bps7316' };
+// Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
+// HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
+const ADMIN_SECRET = 'IPDS731618092026!xz91';
 let currentRole = 'umum';
 const roleSelect = document.getElementById('roleSelect');
 const rolePill = document.getElementById('rolePill');
@@ -801,7 +804,11 @@ setRole('umum');
 
 /* ---------- SINKRONISASI GOOGLE SHEETS ---------- */
 const SYNC_KEY = 'sls_enrekang_apps_script_url';
-let APPS_SCRIPT_URL = localStorage.getItem(SYNC_KEY) || '';
+// URL Web App Google Apps Script bawaan (ditanam di file, berlaku untuk SEMUA pengunjung & peran).
+// Ganti teks di bawah ini dengan URL Web App Anda (diakhiri /exec) agar semua orang (Umum, bps7316, Admin)
+// otomatis melihat data live dari Google Sheets begitu situs dibuka. Biarkan '' jika belum ada.
+const DEFAULT_APPS_SCRIPT_URL = 'PASTE_URL_WEB_APP_ANDA_DI_SINI';
+let APPS_SCRIPT_URL = localStorage.getItem(SYNC_KEY) || DEFAULT_APPS_SCRIPT_URL;
 const syncStatusEl = document.getElementById('syncStatus');
 const syncBtn = document.getElementById('syncBtn');
 
@@ -855,13 +862,17 @@ async function syncFromSheets(silent){
 
 async function pushToSheets(sheetName, action, data, deleteId){
   if(!APPS_SCRIPT_URL) return; // mode offline: perubahan hanya tersimpan di sesi ini
-  const payload = { sheet: sheetName, action, data, id: deleteId };
+  const payload = { sheet: sheetName, action, data, id: deleteId, secret: ADMIN_SECRET };
   try {
-    await fetch(APPS_SCRIPT_URL, {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, // hindari CORS preflight pada Apps Script
       body: JSON.stringify(payload)
     });
+    const result = await res.json().catch(()=>null);
+    if(result && result.success === false){
+      alert('Gagal menyimpan ke Google Sheets: ' + (result.error || 'ditolak server.'));
+    }
   } catch(err){
     console.error('Gagal menyimpan ke Google Sheets:', err);
     alert('Perubahan tersimpan di tampilan, tetapi GAGAL disimpan ke Google Sheets. Periksa koneksi internet dan coba lagi.');
@@ -1002,6 +1013,8 @@ initMaps();
 renderSls();
 renderDesa();
 renderPeta();
+// Placeholder belum diganti = anggap belum dikonfigurasi.
+if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 </script>
 </body>
