@@ -213,6 +213,7 @@
     <div class="tab-btn" data-tab="desa">Cari Koordinat per Desa</div>
     <div class="tab-btn" data-tab="peta">Peta Sebaran</div>
     <div class="tab-btn" data-tab="rekap">Rekap per Kecamatan</div>
+    <div class="tab-btn" data-tab="wilayah">Peta Wilayah Lengkap</div>
   </div>
 
   <!-- PANEL 1: SLS / DUSUN -->
@@ -370,6 +371,28 @@
         </thead>
         <tbody id="rekapBody"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- PANEL 5: PETA WILAYAH LENGKAP (SVG detail sampai tingkat dusun) -->
+  <div class="panel" id="panel-wilayah">
+    <div class="search-panel">
+      <p style="margin:0 0 10px;font-size:13px;color:var(--muted);">
+        Peta administrasi lengkap Kabupaten Enrekang — menampilkan batas kecamatan, batas desa, sungai, jalan,
+        serta <b>nama setiap dusun/SLS</b>. Karena berformat vektor (SVG), gambar tetap tajam meskipun diperbesar
+        (zoom) berkali-kali lipat — cocok untuk mencari nama dusun yang letaknya berdekatan.
+      </p>
+      <a href="peta_wilayah_enrekang.svg" target="_blank" rel="noopener" class="btn" style="text-decoration:none;display:inline-block;">
+        🔍 Buka Peta Ukuran Penuh di Tab Baru (bisa di-zoom)
+      </a>
+    </div>
+    <div class="map-box">
+      <div class="map-title">Peta Administrasi Kabupaten Enrekang (pratinjau — klik tombol di atas untuk zoom penuh)</div>
+      <div style="max-height:640px;overflow:auto;background:#fff;text-align:center;padding:8px;">
+        <a href="peta_wilayah_enrekang.svg" target="_blank" rel="noopener">
+          <img src="peta_wilayah_enrekang.svg" alt="Peta Administrasi Kabupaten Enrekang" style="width:100%;max-width:1400px;height:auto;cursor:zoom-in;">
+        </a>
+      </div>
     </div>
   </div>
 
@@ -791,7 +814,7 @@ document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPane
 const ROLE_PASSWORDS = { admin: 'admin123', bps7316: 'bps7316' };
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'IPDS731618092026!xz91';
+const ADMIN_SECRET = 'ganti-dengan-kunci-rahasia-anda-sendiri';
 let currentRole = 'umum';
 const roleSelect = document.getElementById('roleSelect');
 const rolePill = document.getElementById('rolePill');
@@ -1062,7 +1085,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 </script>
 </body>
