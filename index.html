@@ -144,6 +144,8 @@
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
   .pill.desa{background:#dcedf7;color:var(--moss-dark);}
   .pill.kel{background:#fbe8cc;color:var(--clay);}
+  .pill.unverified{background:#fdecc8;color:#9a5b00;font-weight:700;}
+  .action-btn.verify{color:#2e7d32;border-color:#2e7d32;}
   .col-code{}
   .ringkas .col-code{display:none;}
 
@@ -191,11 +193,8 @@
       <div class="badge">MFD 2025_2</div>
       <div class="role-box">
         <span class="role-pill umum" id="rolePill">UMUM</span>
-        <select id="roleSelect">
-          <option value="umum">Umum</option>
-          <option value="bps7316">bps7316</option>
-          <option value="admin">Admin</option>
-        </select>
+        <button class="btn outline" id="loginBtn" style="padding:5px 11px;">🔒 Login</button>
+        <button class="btn outline" id="logoutBtn" style="padding:5px 11px;display:none;">Keluar</button>
       </div>
     </div>
   </header>
@@ -399,14 +398,29 @@
     </div>
   </div>
 
-  <!-- PANEL 6: RIWAYAT UPDATE KOORDINAT (khusus staf) -->
+  <!-- PANEL 6: RIWAYAT & VERIFIKASI (khusus staf) -->
   <div class="panel staff-only" id="panel-riwayat">
+    <div class="stats-row" id="verifStatsRow" style="margin-bottom:14px;"></div>
+
     <div class="search-panel">
-      <p style="margin:0;font-size:13px;color:var(--muted);">
-        Catatan setiap kali titik koordinat diperbarui — kapan, oleh siapa, dan perubahan nilainya.
+      <p style="margin:0 0 10px;font-size:13px;color:var(--muted);">
+        Catatan setiap kali data diubah — kapan, jenis aksi, ringkasan perubahan, dan siapa yang melakukannya.
       </p>
+      <div class="filters" style="margin-top:0;">
+        <input type="text" id="riwayatSearch" placeholder="Cari nama item / kecamatan..." style="padding:7px 9px;border:1px solid var(--line);border-radius:3px;font-size:12.5px;flex:1 1 200px;">
+        <select id="riwayatPetugasFilter"><option value="">Semua Petugas</option></select>
+        <select id="riwayatAksiFilter"><option value="">Semua Aksi</option></select>
+        <input type="date" id="riwayatDariTgl" title="Dari tanggal" style="padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:12.5px;">
+        <input type="date" id="riwayatSampaiTgl" title="Sampai tanggal" style="padding:6px 8px;border:1px solid var(--line);border-radius:3px;font-size:12.5px;">
+      </div>
     </div>
-    <div class="count-line"><span id="riwayatCount">Memuat riwayat...</span></div>
+
+    <div class="count-line">
+      <span id="riwayatCount">Memuat riwayat...</span>
+      <span class="action-row">
+        <button class="btn" id="riwayatExportBtn">Unduh CSV</button>
+      </span>
+    </div>
     <div class="table-scroll">
       <table id="riwayatTable">
         <thead>
@@ -414,14 +428,15 @@
             <th class="no-sort">NO</th>
             <th class="no-sort">WAKTU</th>
             <th class="no-sort">DATA</th>
+            <th class="no-sort">AKSI</th>
             <th class="no-sort">NAMA ITEM</th>
-            <th class="no-sort">KOORDINAT LAMA</th>
-            <th class="no-sort">KOORDINAT BARU</th>
-            <th class="no-sort">DIPERBARUI OLEH</th>
+            <th class="no-sort">KECAMATAN</th>
+            <th class="no-sort">RINGKASAN PERUBAHAN</th>
+            <th class="no-sort">OLEH</th>
             <th class="no-sort">PERAN</th>
           </tr>
         </thead>
-        <tbody id="riwayatBody"><tr class="empty-row"><td colspan="8">Memuat riwayat...</td></tr></tbody>
+        <tbody id="riwayatBody"><tr class="empty-row"><td colspan="9">Memuat riwayat...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -479,6 +494,18 @@ function mapsLink(lat,lng){
 }
 function pad(val, len){
   return String(val==null?'':val).trim().padStart(len,'0');
+}
+function verifBadge(row, sheetName, idVal, namaItem){
+  if((row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return '';
+  const verifyBtn = `<button class="action-btn verify admin-only" onclick="verifyRow('${sheetName}',${idVal},'${(namaItem||'').replace(/'/g,"\\'")}')">✓ Verifikasi</button>`;
+  return ` <span class="pill unverified">⏳ Belum diverifikasi</span> ${verifyBtn}`;
+}
+function haversineKm(lat1,lng1,lat2,lng2){
+  if([lat1,lng1,lat2,lng2].some(v=>v==null||isNaN(v))) return 0;
+  const R=6371, toRad=d=>d*Math.PI/180;
+  const dLat=toRad(lat2-lat1), dLng=toRad(lng2-lng1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 function cmp(a,b){
   const na = parseFloat(a), nb = parseFloat(b);
@@ -667,7 +694,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openSlsCoordEdit(${row.id})">📍 Update</button></td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openSlsCoordEdit(${row.id})">📍 Update</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -750,7 +777,7 @@ function renderDesa(){
         <td>${row.jml_sls}</td>
         <td>${row.jml_nonsls}</td>
         <td>${row.jml_bs}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button></td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openDesaEdit(${row.iddesa})">Edit</button>
           <button class="action-btn del" onclick="deleteDesa(${row.iddesa})">Hapus</button>
@@ -862,7 +889,15 @@ document.getElementById('rekapExportBtn').addEventListener('click', ()=>{
 document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPanel('panel-rekap'));
 
 /* ---------- ROLE / LOGIN ---------- */
-const ROLE_PASSWORDS = { admin: 'admin123', bps7316: 'bps7316' };
+// ---------- AKUN PENGGUNA (multi-admin & multi-petugas bps7316) ----------
+// Tambah/ubah/hapus akun di daftar ini sesuai kebutuhan tim Anda.
+// "role" harus salah satu dari: 'admin' atau 'bps7316'.
+const USER_ACCOUNTS = [
+  { username: 'Admin Utama', password: 'admin123', role: 'admin' },
+  // { username: 'Nama Admin Lain', password: 'sandi-lain', role: 'admin' },
+  { username: 'Petugas BPS 7316', password: 'bps7316', role: 'bps7316' },
+  // { username: 'Nama Petugas Lain', password: 'sandi-lain', role: 'bps7316' },
+];
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
 const ADMIN_SECRET = 'adminIPDS7316!xz2026';
@@ -871,42 +906,45 @@ const ADMIN_SECRET = 'adminIPDS7316!xz2026';
 // HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
 const BPS_SECRET = 'Bps7316!xz2026';
 let currentRole = 'umum';
-const roleSelect = document.getElementById('roleSelect');
+let currentUserName = '';
 const rolePill = document.getElementById('rolePill');
+const loginBtn = document.getElementById('loginBtn');
+const logoutBtn = document.getElementById('logoutBtn');
 
 function setRole(role){
   document.body.classList.remove('role-admin','role-bps7316','role-umum');
   document.body.classList.add('role-'+role);
   currentRole = role;
-  rolePill.textContent = role.toUpperCase();
+  rolePill.textContent = role==='umum' ? 'UMUM' : `${role.toUpperCase()} — ${currentUserName}`;
   rolePill.className = 'role-pill ' + role;
-  roleSelect.value = role;
+  loginBtn.style.display = (role==='umum') ? 'inline-block' : 'none';
+  logoutBtn.style.display = (role==='umum') ? 'none' : 'inline-block';
 }
-roleSelect.addEventListener('change', ()=>{
-  const target = roleSelect.value;
-  if(target === 'umum'){ setRole('umum'); return; }
-  const pass = prompt(`Masukkan kata sandi untuk peran "${target}":`);
-  if(pass === ROLE_PASSWORDS[target]){
-    setRole(target);
-    ensureUserName();
-  } else {
-    if(pass !== null) alert('Kata sandi salah.');
-    roleSelect.value = currentRole;
-  }
-});
-setRole('umum');
 
-/* ---------- NAMA PENGGUNA (untuk riwayat update) ---------- */
-let currentUserName = localStorage.getItem('sls_user_name') || '';
-function ensureUserName(){
-  if(!currentUserName){
-    const name = prompt('Masukkan nama Anda (untuk dicatat di riwayat pembaruan data):');
-    if(name && name.trim()){
-      currentUserName = name.trim();
-      localStorage.setItem('sls_user_name', currentUserName);
+loginBtn.addEventListener('click', ()=>{
+  openModal('Login', [
+    {key:'username', label:'Nama Pengguna'},
+    {key:'password', label:'Kata Sandi', type:'password'}
+  ], {}, (result)=>{
+    const match = USER_ACCOUNTS.find(a =>
+      a.username.trim().toLowerCase() === (result.username||'').trim().toLowerCase() &&
+      a.password === result.password
+    );
+    if(match){
+      currentUserName = match.username;
+      setRole(match.role);
+    } else {
+      alert('Nama pengguna atau kata sandi salah.');
     }
-  }
-}
+  });
+});
+
+logoutBtn.addEventListener('click', ()=>{
+  currentUserName = '';
+  setRole('umum');
+});
+
+setRole('umum');
 
 /* ---------- SINKRONISASI GOOGLE SHEETS ---------- */
 const SYNC_KEY = 'sls_enrekang_apps_script_url';
@@ -956,13 +994,15 @@ async function syncFromSheets(silent){
     SLS_DATA.length = 0;
     slsRows.forEach(r=>SLS_DATA.push({
       id:Number(r.id), nmsls:r.nmsls||'', nmkec:r.nmkec||'', kdkec:r.kdkec, nmdesa:r.nmdesa||'',
-      kddesa:r.kddesa, kdsls:r.kdsls, kdsubsls:r.kdsubsls, lat:parseFloat(r.lat), lng:parseFloat(r.lng)
+      kddesa:r.kddesa, kdsls:r.kdsls, kdsubsls:r.kdsubsls, lat:parseFloat(r.lat), lng:parseFloat(r.lng),
+      status_verifikasi:r.status_verifikasi||''
     }));
     DESA_DATA.length = 0;
     desaRows.forEach(r=>DESA_DATA.push({
       iddesa:Number(r.iddesa), nmdesa:r.nmdesa||'', status_pem:r.status_pem||'DESA', nmkec:r.nmkec||'',
       kdkec:r.kdkec, kddesa:r.kddesa, klas:r.klas, jml_subsls:r.jml_subsls, jml_sls:r.jml_sls,
-      jml_nonsls:r.jml_nonsls, jml_bs:r.jml_bs, lat:parseFloat(r.lat), lng:parseFloat(r.lng)
+      jml_nonsls:r.jml_nonsls, jml_bs:r.jml_bs, lat:parseFloat(r.lat), lng:parseFloat(r.lng),
+      status_verifikasi:r.status_verifikasi||''
     }));
     rebuildFilterOptions();
     renderStats(); renderSls(); renderDesa(); renderPeta();
@@ -979,7 +1019,7 @@ async function syncFromSheets(silent){
 
 async function pushToSheets(sheetName, action, data, deleteId){
   if(!APPS_SCRIPT_URL) return; // mode offline: perubahan hanya tersimpan di sesi ini
-  const payload = { sheet: sheetName, action, data, id: deleteId, secret: ADMIN_SECRET };
+  const payload = { sheet: sheetName, action, data, id: deleteId, secret: ADMIN_SECRET, updated_by: currentUserName || '(tidak diisi)' };
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
@@ -1000,7 +1040,7 @@ async function pushToSheets(sheetName, action, data, deleteId){
 // menyesuaikan peran yang sedang login, dan backend hanya mengizinkan aksi 'update_coords'
 // dengan kunci ini — tidak bisa dipakai untuk tambah/edit field lain/hapus data.
 // Setiap pemanggilan juga otomatis dicatat sebagai satu baris riwayat di backend.
-async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, namaItem){
+async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, namaItem, kecamatan){
   if(!APPS_SCRIPT_URL){
     alert('Belum tersambung ke Google Sheets — perubahan koordinat hanya tersimpan di tampilan sesi ini.');
     return;
@@ -1013,6 +1053,7 @@ async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, 
       [idKey]: idValue, lat, lng,
       old_lat: oldLat, old_lng: oldLng,
       nama_item: namaItem,
+      nmkec: kecamatan || '',
       updated_by: currentUserName || '(tidak diisi)',
       role: currentRole
     }
@@ -1033,44 +1074,115 @@ async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, 
   }
 }
 
-/* ---------- RIWAYAT UPDATE KOORDINAT ---------- */
+/* ---------- RIWAYAT & STATISTIK VERIFIKASI ---------- */
 const riwayatBody = document.getElementById('riwayatBody');
 const riwayatCount = document.getElementById('riwayatCount');
-let riwayatLoaded = false;
+const riwayatSearch = document.getElementById('riwayatSearch');
+const riwayatPetugasFilter = document.getElementById('riwayatPetugasFilter');
+const riwayatAksiFilter = document.getElementById('riwayatAksiFilter');
+const riwayatDariTgl = document.getElementById('riwayatDariTgl');
+const riwayatSampaiTgl = document.getElementById('riwayatSampaiTgl');
+let riwayatRawRows = [];
+
+function renderVerifStats(){
+  const totalSls = SLS_DATA.length;
+  const verifSls = SLS_DATA.filter(r => (r.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI').length;
+  const totalDesa = DESA_DATA.length;
+  const verifDesa = DESA_DATA.filter(r => (r.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI').length;
+  const pctSls = totalSls ? Math.round(verifSls/totalSls*100) : 0;
+  const pctDesa = totalDesa ? Math.round(verifDesa/totalDesa*100) : 0;
+  document.getElementById('verifStatsRow').innerHTML = `
+    <div class="stat-card"><div class="num">${verifSls}/${totalSls}</div><div class="lbl">Dusun/SLS terverifikasi (${pctSls}%)</div></div>
+    <div class="stat-card"><div class="num">${verifDesa}/${totalDesa}</div><div class="lbl">Desa/Kelurahan terverifikasi (${pctDesa}%)</div></div>
+    <div class="stat-card"><div class="num">${riwayatRawRows.length}</div><div class="lbl">Total catatan riwayat</div></div>
+  `;
+}
+
+function rebuildRiwayatFilterOptions(){
+  const petugas = uniqueSorted(riwayatRawRows.map(r=>r.diperbarui_oleh).filter(Boolean));
+  riwayatPetugasFilter.innerHTML = '<option value="">Semua Petugas</option>' + petugas.map(p=>`<option value="${p}">${p}</option>`).join('');
+  const aksi = uniqueSorted(riwayatRawRows.map(r=>r.aksi).filter(Boolean));
+  riwayatAksiFilter.innerHTML = '<option value="">Semua Aksi</option>' + aksi.map(a=>`<option value="${a}">${a}</option>`).join('');
+}
+
+function applyRiwayatFilters(){
+  const q = (riwayatSearch.value||'').trim().toLowerCase();
+  const petugas = riwayatPetugasFilter.value;
+  const aksi = riwayatAksiFilter.value;
+  const dari = riwayatDariTgl.value ? new Date(riwayatDariTgl.value) : null;
+  const sampai = riwayatSampaiTgl.value ? new Date(riwayatSampaiTgl.value + 'T23:59:59') : null;
+
+  let rows = riwayatRawRows.filter(r=>{
+    if(petugas && r.diperbarui_oleh !== petugas) return false;
+    if(aksi && r.aksi !== aksi) return false;
+    const t = new Date(r.waktu);
+    if(dari && t < dari) return false;
+    if(sampai && t > sampai) return false;
+    if(q){
+      const hay = [r.nama_item, r.kecamatan, r.ringkasan].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  rows.sort((a,b)=> new Date(b.waktu) - new Date(a.waktu));
+
+  if(rows.length === 0){
+    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Tidak ada catatan yang cocok.</td></tr>';
+  } else {
+    riwayatBody.innerHTML = rows.map((r,i)=>`
+      <tr>
+        <td class="no">${i+1}</td>
+        <td>${new Date(r.waktu).toLocaleString('id-ID')}</td>
+        <td>${r.sheet==='desa'?'Desa':'Dusun/SLS'}</td>
+        <td><b>${r.aksi||'-'}</b></td>
+        <td>${r.nama_item||'-'}</td>
+        <td>${r.kecamatan||'-'}</td>
+        <td>${r.ringkasan||'-'}</td>
+        <td>${r.diperbarui_oleh||'-'}</td>
+        <td>${(r.peran||'-').toUpperCase()}</td>
+      </tr>`).join('');
+  }
+  riwayatCount.innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${riwayatRawRows.length}</b> catatan riwayat.`;
+  riwayatCurrentFiltered = rows;
+}
+let riwayatCurrentFiltered = [];
 
 async function loadRiwayat(){
+  renderVerifStats();
   if(!APPS_SCRIPT_URL){
-    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Belum tersambung ke Google Sheets — riwayat tidak tersedia dalam mode offline.</td></tr>';
+    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Belum tersambung ke Google Sheets — riwayat tidak tersedia dalam mode offline.</td></tr>';
     riwayatCount.textContent = 'Mode offline.';
     return;
   }
   riwayatCount.textContent = 'Memuat riwayat...';
   try {
     const rows = await fetchSheetRows('riwayat');
-    if(!Array.isArray(rows) || rows.length===0){
-      riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Belum ada riwayat pembaruan koordinat.</td></tr>';
+    riwayatRawRows = Array.isArray(rows) ? rows : [];
+    rebuildRiwayatFilterOptions();
+    if(riwayatRawRows.length === 0){
+      riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Belum ada riwayat perubahan data.</td></tr>';
       riwayatCount.textContent = 'Belum ada riwayat.';
       return;
     }
-    rows.sort((a,b)=> new Date(b.waktu) - new Date(a.waktu)); // terbaru dulu
-    riwayatBody.innerHTML = rows.map((r,i)=>`
-      <tr>
-        <td class="no">${i+1}</td>
-        <td>${new Date(r.waktu).toLocaleString('id-ID')}</td>
-        <td>${r.sheet==='desa'?'Desa':'Dusun/SLS'}</td>
-        <td>${r.nama_item||'-'}</td>
-        <td>${r.lat_lama}, ${r.lng_lama}</td>
-        <td><b>${r.lat_baru}, ${r.lng_baru}</b></td>
-        <td>${r.diperbarui_oleh||'-'}</td>
-        <td>${(r.peran||'-').toUpperCase()}</td>
-      </tr>`).join('');
-    riwayatCount.innerHTML = `Menampilkan <b>${rows.length}</b> catatan riwayat.`;
+    applyRiwayatFilters();
   } catch(err){
     console.error(err);
-    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Gagal memuat riwayat. Coba lagi.</td></tr>';
+    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Gagal memuat riwayat. Coba lagi.</td></tr>';
     riwayatCount.textContent = 'Gagal memuat.';
   }
 }
+[riwayatSearch, riwayatPetugasFilter, riwayatAksiFilter, riwayatDariTgl, riwayatSampaiTgl].forEach(el=>{
+  el.addEventListener('input', applyRiwayatFilters);
+  el.addEventListener('change', applyRiwayatFilters);
+});
+document.getElementById('riwayatExportBtn').addEventListener('click', ()=>{
+  const headers = ['Waktu','Data','Aksi','Nama Item','Kecamatan','Ringkasan Perubahan','Diperbarui Oleh','Peran'];
+  const rows = riwayatCurrentFiltered.map(r=>[
+    new Date(r.waktu).toLocaleString('id-ID'), r.sheet==='desa'?'Desa':'Dusun/SLS', r.aksi,
+    r.nama_item, r.kecamatan, r.ringkasan, r.diperbarui_oleh, r.peran
+  ]);
+  downloadCsv('riwayat_perubahan.csv', headers, rows);
+});
 
 /* ---------- MODAL PEMILIH TITIK DI PETA (untuk update koordinat) ---------- */
 let coordPickerMapInst = null, coordPickerMarker = null, coordEditContext = null;
@@ -1134,14 +1246,46 @@ document.getElementById('coordSave').addEventListener('click', ()=>{
   if(isNaN(lat) || isNaN(lng)){ alert('Latitude/Longitude belum diisi atau tidak valid.'); return; }
   const { sheetName, row } = coordEditContext;
   const oldLat = row.lat, oldLng = row.lng;
+
+  // Validasi kewajaran: peringatkan kalau titik baru melompat jauh dari titik lama.
+  const jarakKm = haversineKm(oldLat, oldLng, lat, lng);
+  if(jarakKm > 5){
+    const lanjut = confirm(`Titik baru berjarak ±${jarakKm.toFixed(1)} km dari titik lama — cukup jauh. Yakin ingin menyimpan perubahan ini?`);
+    if(!lanjut) return;
+  }
+
   row.lat = lat; row.lng = lng;
   if(sheetName === 'sls'){ renderSls(); } else { renderDesa(); }
   renderPeta();
   const idVal = sheetName === 'sls' ? row.id : row.iddesa;
   const label = sheetName === 'sls' ? row.nmsls : row.nmdesa;
-  pushCoordsToSheets(sheetName, idVal, lat, lng, oldLat, oldLng, label);
+  if(currentRole === 'bps7316'){ row.status_verifikasi = 'BELUM DIVERIFIKASI'; }
+  else if(currentRole === 'admin'){ row.status_verifikasi = 'TERVERIFIKASI'; }
+  pushCoordsToSheets(sheetName, idVal, lat, lng, oldLat, oldLng, label, row.nmkec);
   coordModal.style.display = 'none';
+  if(sheetName === 'sls'){ renderSls(); } else { renderDesa(); }
 });
+
+// Tandai TERVERIFIKASI tanpa mengubah koordinat (khusus Admin)
+async function verifyRow(sheetName, idVal, namaItem){
+  if(currentRole !== 'admin'){ return; }
+  if(!confirm(`Tandai "${namaItem}" sebagai TERVERIFIKASI?`)) return;
+  const row = (sheetName==='sls' ? SLS_DATA.find(r=>r.id===idVal) : DESA_DATA.find(r=>r.iddesa===idVal));
+  if(row) row.status_verifikasi = 'TERVERIFIKASI';
+  if(sheetName==='sls'){ renderSls(); } else { renderDesa(); }
+  if(!APPS_SCRIPT_URL) return;
+  const idKey = sheetName==='desa' ? 'iddesa' : 'id';
+  const payload = { sheet: sheetName, action:'verify', secret: ADMIN_SECRET,
+    data: { [idKey]: idVal, nama_item: namaItem, nmkec: row ? row.nmkec : '', updated_by: currentUserName||'(tidak diisi)' } };
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
+    const result = await res.json().catch(()=>null);
+    if(result && result.success === false){ alert('Gagal menandai verifikasi: ' + (result.error||'ditolak server.')); }
+  } catch(err){
+    console.error(err);
+    alert('Gagal menandai verifikasi. Periksa koneksi internet.');
+  }
+}
 
 syncBtn.addEventListener('click', ()=>{
   openModal('Sambungkan ke Google Sheets', [
