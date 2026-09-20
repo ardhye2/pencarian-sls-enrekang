@@ -444,7 +444,7 @@
   <footer>Klik titik koordinat untuk membuka lokasi di Google Maps &middot; Data mengikuti struktur MFD Semester 2 Tahun 2025.</footer>
 </div>
 
-<div class="modal-overlay admin-only" id="editModal" style="display:none;">
+<div class="modal-overlay" id="editModal" style="display:none;">
   <div class="modal-box">
     <h3 id="modalTitle">Edit Data</h3>
     <div id="modalFields"></div>
@@ -458,7 +458,11 @@
 <div class="modal-overlay coord-editor" id="coordModal" style="display:none;">
   <div class="modal-box" style="max-width:560px;">
     <h3 id="coordModalTitle">Update Koordinat</h3>
-    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Klik di peta untuk memindahkan titik (atau geser pin-nya), bisa juga isi manual di bawah.</p>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Cari nama tempat untuk pindah cepat ke lokasinya, atau klik langsung di peta / geser pin. Bisa juga isi manual di bawah.</p>
+    <div style="position:relative;margin-bottom:10px;">
+      <input type="text" id="placeSearchInput" placeholder="🔍 Cari nama tempat (masjid, sekolah, jalan, dll)..." style="width:100%;padding:9px 11px;border:2px solid var(--moss-dark);border-radius:4px;font-family:Arial,sans-serif;font-size:13px;">
+      <div id="placeSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 4px 10px rgba(19,36,55,0.15);"></div>
+    </div>
     <div id="coordPickerMap" style="height:280px;border-radius:6px;overflow:hidden;border:1px solid var(--line);margin-bottom:12px;"></div>
     <div class="modal-field">
       <label>Latitude</label>
@@ -473,6 +477,7 @@
       <button class="btn" id="coordSave">Simpan</button>
     </div>
   </div>
+
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -900,7 +905,7 @@ const USER_ACCOUNTS = [
 ];
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'adminIPDS7316!xz2026';
+const ADMIN_SECRET = ''adminIPDS7316!xz2026';
 // Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
 // "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
 // HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
@@ -951,7 +956,7 @@ const SYNC_KEY = 'sls_enrekang_apps_script_url';
 // URL Web App Google Apps Script bawaan (ditanam di file, berlaku untuk SEMUA pengunjung & peran).
 // Ganti teks di bawah ini dengan URL Web App Anda (diakhiri /exec) agar semua orang (Umum, bps7316, Admin)
 // otomatis melihat data live dari Google Sheets begitu situs dibuka. Biarkan '' jika belum ada.
-const DEFAULT_APPS_SCRIPT_URL = 'PASTE_URL_WEB_APP_ANDA_DI_SINI';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec';
 let APPS_SCRIPT_URL = localStorage.getItem(SYNC_KEY) || DEFAULT_APPS_SCRIPT_URL;
 const syncStatusEl = document.getElementById('syncStatus');
 const syncBtn = document.getElementById('syncBtn');
@@ -1225,6 +1230,8 @@ function openCoordEditor(sheetName, row, namaLabel){
   coordEditContext = { sheetName, row };
   document.getElementById('coordModalTitle').textContent = 'Update Koordinat: ' + namaLabel;
   coordModal.style.display = 'flex';
+  placeSearchInput.value = '';
+  placeSearchResults.style.display = 'none';
   ensureCoordPickerMap();
   setTimeout(()=>{
     coordPickerMapInst.resize();
@@ -1235,6 +1242,68 @@ function openCoordEditor(sheetName, row, namaLabel){
     setCoordPickerPosition(lat, lng);
   }, 60);
 }
+
+/* ---------- PENCARIAN LOKASI (seperti kotak pencarian Google Maps) ---------- */
+// Memakai Photon (layanan geocoding gratis berbasis data OpenStreetMap, tanpa API key).
+const placeSearchInput = document.getElementById('placeSearchInput');
+const placeSearchResults = document.getElementById('placeSearchResults');
+let placeSearchTimer = null;
+
+placeSearchInput.addEventListener('input', ()=>{
+  clearTimeout(placeSearchTimer);
+  const q = placeSearchInput.value.trim();
+  if(q.length < 3){
+    placeSearchResults.style.display = 'none';
+    return;
+  }
+  placeSearchTimer = setTimeout(()=>doPlaceSearch(q), 400); // debounce, hindari request beruntun
+});
+
+async function doPlaceSearch(q){
+  placeSearchResults.style.display = 'block';
+  placeSearchResults.innerHTML = '<div style="padding:9px 11px;color:var(--muted);font-size:12.5px;">Mencari...</div>';
+  try {
+    // Bias pencarian di sekitar Enrekang (lat -3.5, lon 119.85) supaya hasil lebih relevan.
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lat=-3.5&lon=119.85&limit=6`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const feats = (data && data.features) || [];
+    if(feats.length === 0){
+      placeSearchResults.innerHTML = '<div style="padding:9px 11px;color:var(--muted);font-size:12.5px;">Tidak ditemukan. Coba kata kunci lain, atau klik langsung di peta.</div>';
+      return;
+    }
+    placeSearchResults.innerHTML = feats.map((f,i)=>{
+      const p = f.properties || {};
+      const nama = p.name || q;
+      const detail = [p.street, p.city || p.county, p.state].filter(Boolean).join(', ');
+      return `<div class="place-result" data-idx="${i}" style="padding:9px 11px;font-size:12.5px;cursor:pointer;border-bottom:1px solid #eef1f5;">
+        <div style="font-weight:600;color:var(--ink);">📍 ${nama}</div>
+        ${detail ? `<div style="color:var(--muted);font-size:11.5px;">${detail}</div>` : ''}
+      </div>`;
+    }).join('');
+    [...placeSearchResults.querySelectorAll('.place-result')].forEach(el=>{
+      el.addEventListener('mouseenter', ()=>{ el.style.background = '#f2f5f8'; });
+      el.addEventListener('mouseleave', ()=>{ el.style.background = ''; });
+      el.addEventListener('click', ()=>{
+        const f = feats[Number(el.dataset.idx)];
+        const [lng, lat] = f.geometry.coordinates;
+        coordPickerMapInst.flyTo({ center:[lng, lat], zoom:16 });
+        setCoordPickerPosition(lat, lng);
+        placeSearchResults.style.display = 'none';
+        placeSearchInput.value = (f.properties && f.properties.name) || q;
+      });
+    });
+  } catch(err){
+    console.error('Pencarian lokasi gagal:', err);
+    placeSearchResults.innerHTML = '<div style="padding:9px 11px;color:#b0402a;font-size:12.5px;">Gagal mencari lokasi. Periksa koneksi internet.</div>';
+  }
+}
+// Tutup daftar hasil kalau klik di luar kotak pencarian
+document.addEventListener('click', (e)=>{
+  if(!placeSearchInput.contains(e.target) && !placeSearchResults.contains(e.target)){
+    placeSearchResults.style.display = 'none';
+  }
+});
 
 document.getElementById('coordCancel').addEventListener('click', ()=>{
   coordModal.style.display = 'none';
@@ -1458,7 +1527,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 </script>
 </body>
