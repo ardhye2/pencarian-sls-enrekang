@@ -216,6 +216,7 @@
     <div class="tab-btn" data-tab="peta">Peta Sebaran</div>
     <div class="tab-btn" data-tab="rekap">Rekap per Kecamatan</div>
     <div class="tab-btn" data-tab="wilayah">Peta Wilayah Lengkap</div>
+    <div class="tab-btn staff-only" data-tab="riwayat">🕘 Riwayat Update</div>
   </div>
 
   <!-- PANEL 1: SLS / DUSUN -->
@@ -398,6 +399,33 @@
     </div>
   </div>
 
+  <!-- PANEL 6: RIWAYAT UPDATE KOORDINAT (khusus staf) -->
+  <div class="panel staff-only" id="panel-riwayat">
+    <div class="search-panel">
+      <p style="margin:0;font-size:13px;color:var(--muted);">
+        Catatan setiap kali titik koordinat diperbarui — kapan, oleh siapa, dan perubahan nilainya.
+      </p>
+    </div>
+    <div class="count-line"><span id="riwayatCount">Memuat riwayat...</span></div>
+    <div class="table-scroll">
+      <table id="riwayatTable">
+        <thead>
+          <tr>
+            <th class="no-sort">NO</th>
+            <th class="no-sort">WAKTU</th>
+            <th class="no-sort">DATA</th>
+            <th class="no-sort">NAMA ITEM</th>
+            <th class="no-sort">KOORDINAT LAMA</th>
+            <th class="no-sort">KOORDINAT BARU</th>
+            <th class="no-sort">DIPERBARUI OLEH</th>
+            <th class="no-sort">PERAN</th>
+          </tr>
+        </thead>
+        <tbody id="riwayatBody"><tr class="empty-row"><td colspan="8">Memuat riwayat...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <footer>Klik titik koordinat untuk membuka lokasi di Google Maps &middot; Data mengikuti struktur MFD Semester 2 Tahun 2025.</footer>
 </div>
 
@@ -408,6 +436,26 @@
     <div class="modal-actions">
       <button class="btn outline" id="modalCancel">Batal</button>
       <button class="btn" id="modalSave">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay coord-editor" id="coordModal" style="display:none;">
+  <div class="modal-box" style="max-width:560px;">
+    <h3 id="coordModalTitle">Update Koordinat</h3>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Klik di peta untuk memindahkan titik (atau geser pin-nya), bisa juga isi manual di bawah.</p>
+    <div id="coordPickerMap" style="height:280px;border-radius:6px;overflow:hidden;border:1px solid var(--line);margin-bottom:12px;"></div>
+    <div class="modal-field">
+      <label>Latitude</label>
+      <input type="number" step="any" id="coordLat">
+    </div>
+    <div class="modal-field">
+      <label>Longitude</label>
+      <input type="number" step="any" id="coordLng">
+    </div>
+    <div class="modal-actions">
+      <button class="btn outline" id="coordCancel">Batal</button>
+      <button class="btn" id="coordSave">Simpan</button>
     </div>
   </div>
 </div>
@@ -482,6 +530,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
       if(btn.dataset.tab==='desa' && mapDesa) mapDesa.resize();
       if(btn.dataset.tab==='peta' && mapPeta) mapPeta.resize();
     }, 60);
+    if(btn.dataset.tab==='riwayat') loadRiwayat();
   });
 });
 
@@ -839,12 +888,25 @@ roleSelect.addEventListener('change', ()=>{
   const pass = prompt(`Masukkan kata sandi untuk peran "${target}":`);
   if(pass === ROLE_PASSWORDS[target]){
     setRole(target);
+    ensureUserName();
   } else {
     if(pass !== null) alert('Kata sandi salah.');
     roleSelect.value = currentRole;
   }
 });
 setRole('umum');
+
+/* ---------- NAMA PENGGUNA (untuk riwayat update) ---------- */
+let currentUserName = localStorage.getItem('sls_user_name') || '';
+function ensureUserName(){
+  if(!currentUserName){
+    const name = prompt('Masukkan nama Anda (untuk dicatat di riwayat pembaruan data):');
+    if(name && name.trim()){
+      currentUserName = name.trim();
+      localStorage.setItem('sls_user_name', currentUserName);
+    }
+  }
+}
 
 /* ---------- SINKRONISASI GOOGLE SHEETS ---------- */
 const SYNC_KEY = 'sls_enrekang_apps_script_url';
@@ -937,14 +999,24 @@ async function pushToSheets(sheetName, action, data, deleteId){
 // Khusus update titik koordinat (dipakai peran bps7316 & admin). Kunci rahasia yang dikirim
 // menyesuaikan peran yang sedang login, dan backend hanya mengizinkan aksi 'update_coords'
 // dengan kunci ini — tidak bisa dipakai untuk tambah/edit field lain/hapus data.
-async function pushCoordsToSheets(sheetName, idValue, lat, lng){
+// Setiap pemanggilan juga otomatis dicatat sebagai satu baris riwayat di backend.
+async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, namaItem){
   if(!APPS_SCRIPT_URL){
     alert('Belum tersambung ke Google Sheets — perubahan koordinat hanya tersimpan di tampilan sesi ini.');
     return;
   }
   const secret = (currentRole === 'admin') ? ADMIN_SECRET : BPS_SECRET;
   const idKey = (sheetName === 'desa') ? 'iddesa' : 'id';
-  const payload = { sheet: sheetName, action:'update_coords', data:{ [idKey]: idValue, lat, lng }, secret };
+  const payload = {
+    sheet: sheetName, action:'update_coords', secret,
+    data:{
+      [idKey]: idValue, lat, lng,
+      old_lat: oldLat, old_lng: oldLng,
+      nama_item: namaItem,
+      updated_by: currentUserName || '(tidak diisi)',
+      role: currentRole
+    }
+  };
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
@@ -960,6 +1032,116 @@ async function pushCoordsToSheets(sheetName, idValue, lat, lng){
     alert('Koordinat tersimpan di tampilan, tetapi GAGAL disimpan ke Google Sheets. Periksa koneksi internet dan coba lagi.');
   }
 }
+
+/* ---------- RIWAYAT UPDATE KOORDINAT ---------- */
+const riwayatBody = document.getElementById('riwayatBody');
+const riwayatCount = document.getElementById('riwayatCount');
+let riwayatLoaded = false;
+
+async function loadRiwayat(){
+  if(!APPS_SCRIPT_URL){
+    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Belum tersambung ke Google Sheets — riwayat tidak tersedia dalam mode offline.</td></tr>';
+    riwayatCount.textContent = 'Mode offline.';
+    return;
+  }
+  riwayatCount.textContent = 'Memuat riwayat...';
+  try {
+    const rows = await fetchSheetRows('riwayat');
+    if(!Array.isArray(rows) || rows.length===0){
+      riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Belum ada riwayat pembaruan koordinat.</td></tr>';
+      riwayatCount.textContent = 'Belum ada riwayat.';
+      return;
+    }
+    rows.sort((a,b)=> new Date(b.waktu) - new Date(a.waktu)); // terbaru dulu
+    riwayatBody.innerHTML = rows.map((r,i)=>`
+      <tr>
+        <td class="no">${i+1}</td>
+        <td>${new Date(r.waktu).toLocaleString('id-ID')}</td>
+        <td>${r.sheet==='desa'?'Desa':'Dusun/SLS'}</td>
+        <td>${r.nama_item||'-'}</td>
+        <td>${r.lat_lama}, ${r.lng_lama}</td>
+        <td><b>${r.lat_baru}, ${r.lng_baru}</b></td>
+        <td>${r.diperbarui_oleh||'-'}</td>
+        <td>${(r.peran||'-').toUpperCase()}</td>
+      </tr>`).join('');
+    riwayatCount.innerHTML = `Menampilkan <b>${rows.length}</b> catatan riwayat.`;
+  } catch(err){
+    console.error(err);
+    riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="8">Gagal memuat riwayat. Coba lagi.</td></tr>';
+    riwayatCount.textContent = 'Gagal memuat.';
+  }
+}
+
+/* ---------- MODAL PEMILIH TITIK DI PETA (untuk update koordinat) ---------- */
+let coordPickerMapInst = null, coordPickerMarker = null, coordEditContext = null;
+const coordModal = document.getElementById('coordModal');
+const coordLatInput = document.getElementById('coordLat');
+const coordLngInput = document.getElementById('coordLng');
+
+function ensureCoordPickerMap(){
+  if(coordPickerMapInst) return;
+  coordPickerMapInst = new maplibregl.Map({
+    container: 'coordPickerMap',
+    style: MAP_STYLE,
+    center: [119.85, -3.5],
+    zoom: 9
+  });
+  coordPickerMapInst.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-left');
+  coordPickerMapInst.on('click', (e)=>{
+    setCoordPickerPosition(e.lngLat.lat, e.lngLat.lng);
+  });
+}
+
+function setCoordPickerPosition(lat, lng){
+  coordLatInput.value = lat.toFixed(6);
+  coordLngInput.value = lng.toFixed(6);
+  if(coordPickerMarker){
+    coordPickerMarker.setLngLat([lng, lat]);
+  } else {
+    coordPickerMarker = new maplibregl.Marker({color:'#e08b1d', draggable:true})
+      .setLngLat([lng, lat])
+      .addTo(coordPickerMapInst);
+    coordPickerMarker.on('dragend', ()=>{
+      const ll = coordPickerMarker.getLngLat();
+      coordLatInput.value = ll.lat.toFixed(6);
+      coordLngInput.value = ll.lng.toFixed(6);
+    });
+  }
+}
+
+function openCoordEditor(sheetName, row, namaLabel){
+  coordEditContext = { sheetName, row };
+  document.getElementById('coordModalTitle').textContent = 'Update Koordinat: ' + namaLabel;
+  coordModal.style.display = 'flex';
+  ensureCoordPickerMap();
+  setTimeout(()=>{
+    coordPickerMapInst.resize();
+    const lat = parseFloat(row.lat) || -3.5;
+    const lng = parseFloat(row.lng) || 119.85;
+    coordPickerMapInst.setCenter([lng, lat]);
+    coordPickerMapInst.setZoom(14);
+    setCoordPickerPosition(lat, lng);
+  }, 60);
+}
+
+document.getElementById('coordCancel').addEventListener('click', ()=>{
+  coordModal.style.display = 'none';
+});
+
+document.getElementById('coordSave').addEventListener('click', ()=>{
+  const lat = parseFloat(coordLatInput.value);
+  const lng = parseFloat(coordLngInput.value);
+  if(isNaN(lat) || isNaN(lng)){ alert('Latitude/Longitude belum diisi atau tidak valid.'); return; }
+  const { sheetName, row } = coordEditContext;
+  const oldLat = row.lat, oldLng = row.lng;
+  row.lat = lat; row.lng = lng;
+  if(sheetName === 'sls'){ renderSls(); } else { renderDesa(); }
+  renderPeta();
+  const idVal = sheetName === 'sls' ? row.id : row.iddesa;
+  const label = sheetName === 'sls' ? row.nmsls : row.nmdesa;
+  pushCoordsToSheets(sheetName, idVal, lat, lng, oldLat, oldLng, label);
+  coordModal.style.display = 'none';
+});
 
 syncBtn.addEventListener('click', ()=>{
   openModal('Sambungkan ke Google Sheets', [
@@ -1072,14 +1254,7 @@ document.getElementById('slsAddBtn').addEventListener('click', openSlsAdd);
 function openSlsCoordEdit(id){
   const row = SLS_DATA.find(r=>r.id===id);
   if(!row) return;
-  openModal(`Update Koordinat: ${row.nmsls}`, [
-    {key:'lat', label:'Latitude', type:'number', step:'any'},
-    {key:'lng', label:'Longitude', type:'number', step:'any'}
-  ], row, (result)=>{
-    row.lat = result.lat; row.lng = result.lng;
-    renderSls(); renderPeta();
-    pushCoordsToSheets('sls', row.id, row.lat, row.lng);
-  });
+  openCoordEditor('sls', row, row.nmsls);
 }
 
 /* ---------- CRUD: DESA (khusus Admin) ---------- */
@@ -1130,14 +1305,7 @@ document.getElementById('desaAddBtn').addEventListener('click', openDesaAdd);
 function openDesaCoordEdit(id){
   const row = DESA_DATA.find(r=>r.iddesa===id);
   if(!row) return;
-  openModal(`Update Koordinat: ${row.nmdesa}`, [
-    {key:'lat', label:'Latitude', type:'number', step:'any'},
-    {key:'lng', label:'Longitude', type:'number', step:'any'}
-  ], row, (result)=>{
-    row.lat = result.lat; row.lng = result.lng;
-    renderDesa(); renderPeta();
-    pushCoordsToSheets('desa', row.iddesa, row.lat, row.lng);
-  });
+  openCoordEditor('desa', row, row.nmdesa);
 }
 
 /* ---------- INIT ---------- */
