@@ -70,6 +70,8 @@
 
   body:not(.role-admin) .admin-only{display:none !important;}
   body.role-umum .staff-only{display:none !important;}
+  body.role-umum .coord-editor{display:none !important;}
+  .action-btn.coord{color:#0f7fb8;border-color:#0f7fb8;}
 
   .modal-overlay{position:fixed;inset:0;background:rgba(28,42,34,0.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
   .modal-box{background:#ffffff;border-radius:6px;max-width:480px;width:100%;max-height:86vh;overflow-y:auto;padding:20px 22px;font-family:Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
@@ -616,7 +618,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td>${mapsLink(row.lat,row.lng)}</td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openSlsCoordEdit(${row.id})">📍 Update</button></td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -699,7 +701,7 @@ function renderDesa(){
         <td>${row.jml_sls}</td>
         <td>${row.jml_nonsls}</td>
         <td>${row.jml_bs}</td>
-        <td>${mapsLink(row.lat,row.lng)}</td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button></td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openDesaEdit(${row.iddesa})">Edit</button>
           <button class="action-btn del" onclick="deleteDesa(${row.iddesa})">Hapus</button>
@@ -814,7 +816,11 @@ document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPane
 const ROLE_PASSWORDS = { admin: 'admin123', bps7316: 'bps7316' };
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'ganti-dengan-kunci-rahasia-anda-sendiri';
+const ADMIN_SECRET = 'adminIPDS7316!xz2026';
+// Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
+// "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
+// HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
+const BPS_SECRET = 'Bps7316!xz2026';
 let currentRole = 'umum';
 const roleSelect = document.getElementById('roleSelect');
 const rolePill = document.getElementById('rolePill');
@@ -928,6 +934,33 @@ async function pushToSheets(sheetName, action, data, deleteId){
   }
 }
 
+// Khusus update titik koordinat (dipakai peran bps7316 & admin). Kunci rahasia yang dikirim
+// menyesuaikan peran yang sedang login, dan backend hanya mengizinkan aksi 'update_coords'
+// dengan kunci ini — tidak bisa dipakai untuk tambah/edit field lain/hapus data.
+async function pushCoordsToSheets(sheetName, idValue, lat, lng){
+  if(!APPS_SCRIPT_URL){
+    alert('Belum tersambung ke Google Sheets — perubahan koordinat hanya tersimpan di tampilan sesi ini.');
+    return;
+  }
+  const secret = (currentRole === 'admin') ? ADMIN_SECRET : BPS_SECRET;
+  const idKey = (sheetName === 'desa') ? 'iddesa' : 'id';
+  const payload = { sheet: sheetName, action:'update_coords', data:{ [idKey]: idValue, lat, lng }, secret };
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json().catch(()=>null);
+    if(result && result.success === false){
+      alert('Gagal menyimpan koordinat: ' + (result.error || 'ditolak server.'));
+    }
+  } catch(err){
+    console.error('Gagal menyimpan koordinat:', err);
+    alert('Koordinat tersimpan di tampilan, tetapi GAGAL disimpan ke Google Sheets. Periksa koneksi internet dan coba lagi.');
+  }
+}
+
 syncBtn.addEventListener('click', ()=>{
   openModal('Sambungkan ke Google Sheets', [
     {key:'url', label:'URL Web App Apps Script (lihat panduan CARA_DEPLOY.md)'}
@@ -1035,6 +1068,20 @@ function deleteSls(id){
 }
 document.getElementById('slsAddBtn').addEventListener('click', openSlsAdd);
 
+// Update koordinat saja (khusus peran bps7316 & admin)
+function openSlsCoordEdit(id){
+  const row = SLS_DATA.find(r=>r.id===id);
+  if(!row) return;
+  openModal(`Update Koordinat: ${row.nmsls}`, [
+    {key:'lat', label:'Latitude', type:'number', step:'any'},
+    {key:'lng', label:'Longitude', type:'number', step:'any'}
+  ], row, (result)=>{
+    row.lat = result.lat; row.lng = result.lng;
+    renderSls(); renderPeta();
+    pushCoordsToSheets('sls', row.id, row.lat, row.lng);
+  });
+}
+
 /* ---------- CRUD: DESA (khusus Admin) ---------- */
 const DESA_FIELDS = [
   {key:'nmdesa', label:'Nama Desa/Kelurahan'},
@@ -1079,13 +1126,27 @@ function deleteDesa(id){
 }
 document.getElementById('desaAddBtn').addEventListener('click', openDesaAdd);
 
+// Update koordinat saja (khusus peran bps7316 & admin)
+function openDesaCoordEdit(id){
+  const row = DESA_DATA.find(r=>r.iddesa===id);
+  if(!row) return;
+  openModal(`Update Koordinat: ${row.nmdesa}`, [
+    {key:'lat', label:'Latitude', type:'number', step:'any'},
+    {key:'lng', label:'Longitude', type:'number', step:'any'}
+  ], row, (result)=>{
+    row.lat = result.lat; row.lng = result.lng;
+    renderDesa(); renderPeta();
+    pushCoordsToSheets('desa', row.iddesa, row.lat, row.lng);
+  });
+}
+
 /* ---------- INIT ---------- */
 initMaps();
 renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 </script>
 </body>
