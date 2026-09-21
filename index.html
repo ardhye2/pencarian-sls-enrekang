@@ -230,6 +230,7 @@
         <select id="slsKecFilter"><option value="">Semua Kecamatan</option></select>
         <select id="slsDesaFilter"><option value="">Semua Desa/Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
+        <label class="toggle-label"><input type="checkbox" id="slsOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
       </div>
     </div>
 
@@ -283,6 +284,7 @@
         <select id="desaKecFilter"><option value="">Semua Kecamatan</option></select>
         <select id="desaStatusFilter"><option value="">Desa &amp; Kelurahan</option><option value="DESA">Desa</option><option value="KELURAHAN">Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="desaRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
+        <label class="toggle-label"><input type="checkbox" id="desaOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
       </div>
     </div>
 
@@ -694,6 +696,7 @@ const slsDesaFilter = document.getElementById('slsDesaFilter');
 const slsBody = document.getElementById('slsBody');
 const slsCount = document.getElementById('slsCount');
 const slsRingkas = document.getElementById('slsRingkas');
+const slsOnlyUnverified = document.getElementById('slsOnlyUnverified');
 const slsBreadcrumb = document.getElementById('slsBreadcrumb');
 const slsSort = {key:null, dir:'asc'};
 let slsFilteredCache = [];
@@ -713,6 +716,7 @@ function renderSlsBreadcrumb(){
   let parts = ['Semua Kecamatan'];
   if(kec) parts = [`<b>${kec}</b>`];
   if(desa) parts.push(`<b>${desa}</b>`);
+  if(slsOnlyUnverified.checked) parts.push('<b>⏳ Belum diverifikasi</b>');
   slsBreadcrumb.innerHTML = 'Lingkup pencarian: ' + parts.join(' &rarr; ');
 }
 
@@ -723,6 +727,7 @@ function renderSls(){
   let filtered = SLS_DATA.filter(row=>{
     if(kec && row.nmkec !== kec) return false;
     if(desa && row.nmdesa !== desa) return false;
+    if(slsOnlyUnverified.checked && (row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return false;
     if(!q) return true;
     const hay = [row.nmsls,row.nmkec,row.nmdesa,row.kdsls,row.kdsubsls,row.idsubsls,row.id].join(' ').toLowerCase();
     return hay.includes(q);
@@ -765,6 +770,7 @@ slsDesaFilter.addEventListener('change', renderSls);
 slsRingkas.addEventListener('change', ()=>{
   document.getElementById('slsTable').classList.toggle('ringkas', slsRingkas.checked);
 });
+slsOnlyUnverified.addEventListener('change', renderSls);
 document.getElementById('slsExportBtn').addEventListener('click', ()=>{
   const headers = ['Nama Dusun/SLS','KD KEC','Kecamatan','KD DESA','Desa/Kel','KD SLS','KD SUBSLS','Latitude','Longitude'];
   const rows = slsFilteredCache.map(r=>[r.nmsls, pad(r.kdkec,3), r.nmkec, pad(r.kddesa,3), r.nmdesa, pad(r.kdsls,4), pad(r.kdsubsls,2), r.lat, r.lng]);
@@ -780,6 +786,7 @@ const desaStatusFilter = document.getElementById('desaStatusFilter');
 const desaBody = document.getElementById('desaBody');
 const desaCount = document.getElementById('desaCount');
 const desaRingkas = document.getElementById('desaRingkas');
+const desaOnlyUnverified = document.getElementById('desaOnlyUnverified');
 const desaBreadcrumb = document.getElementById('desaBreadcrumb');
 const desaSort = {key:null, dir:'asc'};
 let desaFilteredCache = [];
@@ -793,6 +800,7 @@ function renderDesaBreadcrumb(){
   let parts = ['Semua Kecamatan'];
   if(kec) parts = [`<b>${kec}</b>`];
   if(status) parts.push(`<b>${status==='DESA'?'Desa':'Kelurahan'}</b>`);
+  if(desaOnlyUnverified.checked) parts.push('<b>⏳ Belum diverifikasi</b>');
   desaBreadcrumb.innerHTML = 'Lingkup pencarian: ' + parts.join(' &rarr; ');
 }
 
@@ -803,6 +811,7 @@ function renderDesa(){
   let filtered = DESA_DATA.filter(row=>{
     if(kec && row.nmkec !== kec) return false;
     if(status && row.status_pem !== status) return false;
+    if(desaOnlyUnverified.checked && (row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return false;
     if(!q) return true;
     const hay = [row.nmdesa,row.nmkec].join(' ').toLowerCase();
     return hay.includes(q);
@@ -847,6 +856,7 @@ desaStatusFilter.addEventListener('change', renderDesa);
 desaRingkas.addEventListener('change', ()=>{
   document.getElementById('desaTable').classList.toggle('ringkas', desaRingkas.checked);
 });
+desaOnlyUnverified.addEventListener('change', renderDesa);
 document.getElementById('desaExportBtn').addEventListener('click', ()=>{
   const headers = ['Nama Desa/Kel','Status','KD KEC','Kecamatan','KD DESA','Klas','Jml SubSLS','Jml SLS','Jml Non-SLS','Jml BS','Latitude','Longitude'];
   const rows = desaFilteredCache.map(r=>[r.nmdesa, r.status_pem, pad(r.kdkec,3), r.nmkec, pad(r.kddesa,3), r.klas, r.jml_subsls, r.jml_sls, r.jml_nonsls, r.jml_bs, r.lat, r.lng]);
@@ -953,11 +963,11 @@ const USER_ACCOUNTS = [
 ];
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'ganti-dengan-kunci-rahasia-anda-sendiri';
+const ADMIN_SECRET = 'adminIPDS7316!xz2026';
 // Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
 // "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
 // HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
-const BPS_SECRET = 'ganti-dengan-kunci-bps7316-anda-sendiri';
+const BPS_SECRET = 'Bps7316!xz2026';
 let currentRole = 'umum';
 let currentUserName = '';
 const rolePill = document.getElementById('rolePill');
