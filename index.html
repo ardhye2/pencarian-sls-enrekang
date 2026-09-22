@@ -2,7 +2,16 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pencarian SLS &amp; Rekap Desa - Enrekang</title>
+<meta name="description" content="Alat pencarian Dusun/SLS dan Desa/Kelurahan se-Kabupaten Enrekang — BPS Kabupaten Enrekang">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a5686">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Search SLS">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +28,34 @@
     --muted:#5b6b7c;
     --bar:#2f9bd6;
     --accent-green:#3f9142;
+    --card-bg:#ffffff;
+    --on-dark:#f4f7fa;
+    --row-even:#f2f5f8;
+    --row-hover:#e9f2fa;
+    --border-soft:#e7ebf0;
+    --border-soft2:#eef1f5;
+    --track-bg:#e7ebf0;
   }
+  body.dark-mode{
+    --ink:#e8eef5;
+    --paper:#0e161f;
+    --line:#2a3a4a;
+    --moss:#2f9bd6;
+    --moss-dark:#0d3550;
+    --clay:#e0a13d;
+    --highlight:#4a3b13;
+    --muted:#8fa0b3;
+    --bar:#2f9bd6;
+    --accent-green:#4caf50;
+    --card-bg:#16212c;
+    --on-dark:#eaf1f7;
+    --row-even:#1b2732;
+    --row-hover:#1f3040;
+    --border-soft:#26333f;
+    --border-soft2:#22303c;
+    --track-bg:#26333f;
+  }
+  body{transition:background 0.15s, color 0.15s;}
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -74,19 +110,19 @@
   .action-btn.coord{color:#0f7fb8;border-color:#0f7fb8;}
 
   .modal-overlay{position:fixed;inset:0;background:rgba(28,42,34,0.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
-  .modal-box{background:#ffffff;border-radius:6px;max-width:480px;width:100%;max-height:86vh;overflow-y:auto;padding:20px 22px;font-family:Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
+  .modal-box{background:var(--card-bg);border-radius:6px;max-width:480px;width:100%;max-height:86vh;overflow-y:auto;padding:20px 22px;font-family:Arial,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,0.25);}
   .modal-box h3{margin:0 0 14px;font-size:16px;color:var(--moss-dark);font-family:'Plus Jakarta Sans',sans-serif;font-weight:700;}
   .modal-field{margin-bottom:10px;}
   .modal-field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px;font-weight:600;}
   .modal-field input,.modal-field select{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:3px;font-size:13px;font-family:Arial,sans-serif;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
-  .action-btn{font-family:Arial,sans-serif;font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:3px;border:1px solid var(--line);background:#fff;cursor:pointer;margin-right:4px;}
+  .action-btn{font-family:Arial,sans-serif;font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:3px;border:1px solid var(--line);background:var(--card-bg);cursor:pointer;margin-right:4px;}
   .action-btn.edit{color:var(--moss-dark);border-color:var(--moss-dark);}
   .action-btn.del{color:#b0402a;border-color:#b0402a;}
   .action-btn:hover{opacity:0.8;}
 
   .stats-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
-  .stat-card{flex:1 1 140px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--moss);border-radius:6px;padding:10px 14px;font-family:'Inter',Arial,sans-serif;box-shadow:0 1px 2px rgba(19,36,55,0.04);}
+  .stat-card{flex:1 1 140px;background:var(--card-bg);border:1px solid var(--line);border-left:4px solid var(--moss);border-radius:6px;padding:10px 14px;font-family:'Inter',Arial,sans-serif;box-shadow:0 1px 2px rgba(19,36,55,0.04);}
   .stat-card:nth-child(2){border-left-color:var(--clay);}
   .stat-card:nth-child(3){border-left-color:var(--accent-green);}
   .stat-card .num{font-size:24px;font-weight:800;color:var(--ink);font-family:'Plus Jakarta Sans',sans-serif;}
@@ -99,7 +135,7 @@
   .panel{display:none;}
   .panel.active{display:block;}
 
-  .search-panel{background:#ffffff;border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin-bottom:14px;}
+  .search-panel{background:var(--card-bg);border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin-bottom:14px;}
   .search-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
   .search-box{flex:1 1 320px;}
   .search-box input{width:100%;padding:11px 14px;font-family:Arial,sans-serif;font-size:15px;border:2px solid var(--moss-dark);border-radius:3px;background:var(--highlight);color:var(--ink);}
@@ -107,7 +143,7 @@
   .search-box input:focus{outline:none;border-color:var(--clay);}
 
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;font-family:Arial,sans-serif;font-size:12.5px;align-items:center;}
-  select{padding:7px 8px;border:1px solid var(--line);border-radius:3px;background:#fff;color:var(--ink);font-family:Arial,sans-serif;font-size:12.5px;}
+  select{padding:7px 8px;border:1px solid var(--line);border-radius:3px;background:var(--card-bg);color:var(--ink);font-family:Arial,sans-serif;font-size:12.5px;}
 
   .btn{
     font-family:Arial,sans-serif;font-size:12px;font-weight:600;
@@ -115,7 +151,7 @@
     background:var(--moss-dark);color:#fff;cursor:pointer;white-space:nowrap;
   }
   .btn:hover{background:var(--moss);}
-  .btn.outline{background:#fff;color:var(--moss-dark);}
+  .btn.outline{background:var(--card-bg);color:var(--moss-dark);}
   .btn.outline:hover{background:#eef2ea;}
   .toggle-label{display:flex;align-items:center;gap:5px;font-family:Arial,sans-serif;font-size:12px;color:var(--muted);cursor:pointer;user-select:none;}
 
@@ -126,16 +162,16 @@
   .count-line b{color:var(--moss-dark);}
   .action-row{display:flex;gap:8px;flex-wrap:wrap;}
 
-  .table-scroll{overflow-x:auto;overflow-y:auto;max-height:520px;border:1px solid var(--line);border-radius:4px;background:#ffffff;}
+  .table-scroll{overflow-x:auto;overflow-y:auto;max-height:520px;border:1px solid var(--line);border-radius:4px;background:var(--card-bg);}
   table{border-collapse:collapse;width:100%;min-width:1000px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;}
-  thead th{background:var(--moss-dark);color:var(--paper);text-align:left;padding:9px 8px;position:sticky;top:0;font-weight:600;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.12);z-index:2;cursor:pointer;user-select:none;}
+  thead th{background:var(--moss-dark);color:var(--on-dark);text-align:left;padding:9px 8px;position:sticky;top:0;font-weight:600;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.12);z-index:2;cursor:pointer;user-select:none;}
   thead th:hover{background:var(--moss);}
   thead th.no-sort{cursor:default;}
   thead th.no-sort:hover{background:var(--moss-dark);}
   thead th .arrow{opacity:0.55;font-size:10px;margin-left:3px;}
-  tbody td{padding:8px 8px;border-bottom:1px solid #e7ebf0;border-right:1px solid #eef1f5;white-space:nowrap;}
-  tbody tr:nth-child(even){background:#f2f5f8;}
-  tbody tr:hover{background:#e9f2fa;}
+  tbody td{padding:8px 8px;border-bottom:1px solid var(--border-soft);border-right:1px solid var(--border-soft2);white-space:nowrap;}
+  tbody tr:nth-child(even){background:var(--row-even);}
+  tbody tr:hover{background:var(--row-hover);}
   .no{color:var(--muted);text-align:right;}
   mark{background:var(--highlight);color:var(--ink);padding:0 1px;border-radius:2px;}
   .geo-link{color:var(--moss-dark);text-decoration:none;font-weight:600;border-bottom:1px dotted var(--moss-dark);}
@@ -149,16 +185,16 @@
   .col-code{}
   .ringkas .col-code{display:none;}
 
-  .chart-box{background:#ffffff;border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin-bottom:14px;font-family:Arial,sans-serif;}
+  .chart-box{background:var(--card-bg);border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin-bottom:14px;font-family:Arial,sans-serif;}
   .chart-title{font-size:13px;font-weight:700;color:var(--moss-dark);margin-bottom:10px;}
   .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;}
   .bar-label{width:110px;flex:0 0 110px;text-align:right;color:var(--ink);}
-  .bar-track{flex:1;background:#e7ebf0;border-radius:3px;overflow:hidden;height:16px;position:relative;}
+  .bar-track{flex:1;background:var(--track-bg);border-radius:3px;overflow:hidden;height:16px;position:relative;}
   .bar-fill{background:var(--bar);height:100%;border-radius:3px 0 0 3px;}
   .bar-val{width:34px;flex:0 0 34px;color:var(--muted);}
 
   .map-box{border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-bottom:14px;}
-  .map-box .map-title{background:#ffffff;padding:8px 14px;font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);border-bottom:1px solid var(--line);}
+  .map-box .map-title{background:var(--card-bg);padding:8px 14px;font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);border-bottom:1px solid var(--line);}
   .leaflet-map{height:380px;width:100%;}
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
@@ -192,6 +228,7 @@
       </div>
       <div class="badge">MFD 2025_2</div>
       <div class="role-box">
+        <button class="btn outline" id="darkModeToggle" style="padding:5px 9px;" title="Ganti mode gelap/terang">🌙</button>
         <span class="role-pill umum" id="rolePill">UMUM</span>
         <button class="btn outline" id="loginBtn" style="padding:5px 11px;">🔒 Login</button>
         <button class="btn outline" id="logoutBtn" style="padding:5px 11px;display:none;">Keluar</button>
@@ -463,7 +500,7 @@
     <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Cari nama tempat untuk pindah cepat ke lokasinya, atau klik langsung di peta / geser pin. Bisa juga isi manual di bawah.</p>
     <div style="position:relative;margin-bottom:10px;">
       <input type="text" id="placeSearchInput" placeholder="🔍 Cari nama tempat (masjid, sekolah, jalan, dll)..." style="width:100%;padding:9px 11px;border:2px solid var(--moss-dark);border-radius:4px;font-family:Arial,sans-serif;font-size:13px;">
-      <div id="placeSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 4px 10px rgba(19,36,55,0.15);"></div>
+      <div id="placeSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card-bg);border:1px solid var(--line);border-top:none;border-radius:0 0 6px 6px;max-height:220px;overflow-y:auto;z-index:20;box-shadow:0 4px 10px rgba(19,36,55,0.15);"></div>
     </div>
     <div id="coordPickerMap" style="height:280px;border-radius:6px;overflow:hidden;border:1px solid var(--line);margin-bottom:12px;"></div>
     <div class="modal-field">
@@ -602,7 +639,7 @@ const SATELLITE_STYLE = {
 
 function addSatelliteToggle(map, containerId){
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;background:#fff;border:1px solid #dbe3ec;border-radius:8px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px;display:flex;gap:6px;font-family:Arial,sans-serif;';
+  panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:8px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px;display:flex;gap:6px;font-family:Arial,sans-serif;';
 
   function makeOption(key, label, gradient){
     const opt = document.createElement('button');
@@ -642,9 +679,84 @@ function createMap(containerId, scrollZoom){
     zoom: 9,
     scrollZoom: scrollZoom
   });
-  map.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-left');
+  map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
   addSatelliteToggle(map, containerId);
+  addMeasureTool(map, containerId);
   return map;
+}
+
+/* ---------- ALAT UKUR JARAK (klik dua titik di peta, pakai haversineKm) ---------- */
+function addMeasureTool(map, containerId){
+  const MEASURE_SRC = containerId + '-measure-line';
+  const MEASURE_PTS = containerId + '-measure-points';
+  let active = false;
+  let points = []; // [{lat,lng}, ...] maksimal 2 titik
+
+  // Tombol toggle "Ukur Jarak"
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = '📏';
+  btn.title = 'Ukur jarak: klik tombol ini, lalu klik dua titik di peta';
+  btn.style.cssText = 'position:absolute;bottom:10px;left:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+  document.getElementById(containerId).appendChild(btn);
+
+  // Kotak hasil jarak
+  const info = document.createElement('div');
+  info.style.cssText = 'position:absolute;bottom:10px;left:52px;z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:6px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px 10px;font-family:Arial,sans-serif;font-size:12px;color:var(--ink,#132437);display:none;white-space:nowrap;';
+  document.getElementById(containerId).appendChild(info);
+
+  function ensureLayer(){
+    if(!map.getSource(MEASURE_SRC)){
+      map.addSource(MEASURE_SRC, {type:'geojson', data:{type:'Feature', geometry:{type:'LineString', coordinates:points.map(p=>[p.lng,p.lat])}}});
+      map.addLayer({id:MEASURE_SRC, type:'line', source:MEASURE_SRC, paint:{'line-color':'#e08b1d','line-width':3,'line-dasharray':[2,1.5]}});
+    }
+    if(!map.getSource(MEASURE_PTS)){
+      map.addSource(MEASURE_PTS, {type:'geojson', data:{type:'FeatureCollection', features:points.map(p=>({type:'Feature', geometry:{type:'Point', coordinates:[p.lng,p.lat]}}))}});
+      map.addLayer({id:MEASURE_PTS, type:'circle', source:MEASURE_PTS, paint:{'circle-radius':6,'circle-color':'#e08b1d','circle-stroke-width':2,'circle-stroke-color':'#fff'}});
+    }
+  }
+  function syncData(){
+    ensureLayer();
+    const lineSrc = map.getSource(MEASURE_SRC);
+    if(lineSrc) lineSrc.setData({type:'Feature', geometry:{type:'LineString', coordinates:points.map(p=>[p.lng,p.lat])}});
+    const ptsSrc = map.getSource(MEASURE_PTS);
+    if(ptsSrc) ptsSrc.setData({type:'FeatureCollection', features:points.map(p=>({type:'Feature', geometry:{type:'Point', coordinates:[p.lng,p.lat]}}))});
+  }
+  // Style peta bisa diganti total (toggle Default/Satelit) yang menghapus source/layer custom —
+  // pasang ulang layer pengukuran begitu style baru selesai dimuat.
+  map.on('style.load', ()=>{ if(points.length) { ensureLayer(); syncData(); } });
+
+  function updateInfo(){
+    if(points.length < 2){ info.style.display = 'none'; return; }
+    const km = haversineKm(points[0].lat, points[0].lng, points[1].lat, points[1].lng);
+    info.textContent = `📏 Jarak: ${km < 1 ? Math.round(km*1000)+' m' : km.toFixed(2)+' km'}`;
+    info.style.display = 'block';
+  }
+
+  function setActive(on){
+    active = on;
+    btn.style.borderColor = on ? '#0f7fb8' : 'var(--line,#dbe3ec)';
+    btn.style.background = on ? '#eef6fb' : 'var(--card-bg,#fff)';
+    map.getCanvas().style.cursor = on ? 'crosshair' : '';
+    if(!on){
+      points = [];
+      syncData();
+      info.style.display = 'none';
+    }
+  }
+
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    setActive(!active);
+  });
+
+  map.on('click', (e)=>{
+    if(!active) return;
+    if(points.length >= 2) points = []; // klik lagi setelah 2 titik -> mulai ukur baru
+    points.push({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    syncData();
+    updateInfo();
+  });
 }
 
 function initMaps(){
@@ -963,11 +1075,28 @@ const USER_ACCOUNTS = [
 ];
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'adminIPDS7316!xz2026';
+const ADMIN_SECRET = 'ganti-dengan-kunci-rahasia-anda-sendiri';
+/* ---------- MODE GELAP ---------- */
+const DARK_MODE_KEY = 'sls_enrekang_dark_mode';
+const darkModeToggle = document.getElementById('darkModeToggle');
+function applyDarkMode(on){
+  document.body.classList.toggle('dark-mode', on);
+  darkModeToggle.textContent = on ? '☀️' : '🌙';
+  darkModeToggle.title = on ? 'Beralih ke mode terang' : 'Beralih ke mode gelap';
+}
+let initialDarkMode = false;
+try { initialDarkMode = localStorage.getItem(DARK_MODE_KEY) === '1'; } catch(e){ /* localStorage tidak tersedia, abaikan */ }
+applyDarkMode(initialDarkMode);
+darkModeToggle.addEventListener('click', ()=>{
+  const nowDark = !document.body.classList.contains('dark-mode');
+  applyDarkMode(nowDark);
+  try { localStorage.setItem(DARK_MODE_KEY, nowDark ? '1' : '0'); } catch(e){ /* abaikan kalau gagal disimpan */ }
+});
+
 // Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
 // "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
 // HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
-const BPS_SECRET = 'Bps7316!xz2026';
+const BPS_SECRET = 'ganti-dengan-kunci-bps7316-anda-sendiri';
 let currentRole = 'umum';
 let currentUserName = '';
 const rolePill = document.getElementById('rolePill');
@@ -1261,7 +1390,7 @@ function ensureCoordPickerMap(){
     center: [119.85, -3.5],
     zoom: 9
   });
-  coordPickerMapInst.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-left');
+  coordPickerMapInst.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
   coordPickerMapInst.on('click', (e)=>{
     setCoordPickerPosition(e.lngLat.lat, e.lngLat.lng);
   });
@@ -1341,7 +1470,7 @@ async function doPlaceSearch(q){
       </div>`;
     }).join('');
     [...placeSearchResults.querySelectorAll('.place-result')].forEach(el=>{
-      el.addEventListener('mouseenter', ()=>{ el.style.background = '#f2f5f8'; });
+      el.addEventListener('mouseenter', ()=>{ el.style.background = 'var(--row-even, #f2f5f8)'; });
       el.addEventListener('mouseleave', ()=>{ el.style.background = ''; });
       el.addEventListener('click', ()=>{
         const f = feats[Number(el.dataset.idx)];
@@ -1588,6 +1717,14 @@ renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
 if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
+
+/* ---------- PWA: daftarkan service worker (agar bisa di-"Add to Home Screen" & dibuka offline) ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js')
+      .catch(err => console.warn('Registrasi service worker gagal:', err));
+  });
+}
 </script>
 </body>
 </html>
