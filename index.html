@@ -1075,7 +1075,7 @@ const USER_ACCOUNTS = [
 ];
 // Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
 // HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'ganti-dengan-kunci-rahasia-anda-sendiri';
+const ADMIN_SECRET = 'adminIPDS7316!xz2026';
 /* ---------- MODE GELAP ---------- */
 const DARK_MODE_KEY = 'sls_enrekang_dark_mode';
 const darkModeToggle = document.getElementById('darkModeToggle');
@@ -1096,7 +1096,7 @@ darkModeToggle.addEventListener('click', ()=>{
 // Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
 // "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
 // HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
-const BPS_SECRET = 'ganti-dengan-kunci-bps7316-anda-sendiri';
+const BPS_SECRET = 'Bps7316!xz2026';
 let currentRole = 'umum';
 let currentUserName = '';
 const rolePill = document.getElementById('rolePill');
@@ -1143,7 +1143,7 @@ const SYNC_KEY = 'sls_enrekang_apps_script_url';
 // URL Web App Google Apps Script bawaan (ditanam di file, berlaku untuk SEMUA pengunjung & peran).
 // Ganti teks di bawah ini dengan URL Web App Anda (diakhiri /exec) agar semua orang (Umum, bps7316, Admin)
 // otomatis melihat data live dari Google Sheets begitu situs dibuka. Biarkan '' jika belum ada.
-const DEFAULT_APPS_SCRIPT_URL = 'PASTE_URL_WEB_APP_ANDA_DI_SINI';
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec';
 let APPS_SCRIPT_URL = localStorage.getItem(SYNC_KEY) || DEFAULT_APPS_SCRIPT_URL;
 const syncStatusEl = document.getElementById('syncStatus');
 const syncBtn = document.getElementById('syncBtn');
