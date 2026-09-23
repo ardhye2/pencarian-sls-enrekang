@@ -1625,7 +1625,10 @@ const SLS_FIELDS = [
 function openSlsEdit(id){
   const row = SLS_DATA.find(r=>r.id===id);
   if(!row) return;
-  openModal('Edit Data Dusun/SLS', SLS_FIELDS, row, (result)=>{
+  // Tampilkan kode wilayah dengan angka nol di depan (format resmi BPS) supaya tidak tertimpa
+  // versi tanpa nol depan kalau disimpan tanpa diubah.
+  const displayData = {...row, kdkec: pad(row.kdkec,3), kddesa: pad(row.kddesa,3), kdsls: pad(row.kdsls,4), kdsubsls: pad(row.kdsubsls,2)};
+  openModal('Edit Data Dusun/SLS', SLS_FIELDS, displayData, (result)=>{
     Object.assign(row, result);
     refreshSlsDesaOptions(); renderSls(); renderPeta();
     pushToSheets('sls','update', row);
@@ -1676,7 +1679,9 @@ const DESA_FIELDS = [
 function openDesaEdit(id){
   const row = DESA_DATA.find(r=>r.iddesa===id);
   if(!row) return;
-  openModal('Edit Data Desa/Kelurahan', DESA_FIELDS, row, (result)=>{
+  // Sama seperti openSlsEdit: tampilkan kode dengan nol di depan supaya tidak tertimpa polos.
+  const displayData = {...row, kdkec: pad(row.kdkec,3), kddesa: pad(row.kddesa,3)};
+  openModal('Edit Data Desa/Kelurahan', DESA_FIELDS, displayData, (result)=>{
     Object.assign(row, result);
     renderDesa(); renderPeta();
     pushToSheets('desa','update', row);
@@ -1715,7 +1720,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwYejh_21Lg9CbBhxh7VD5C1Qmj6Y1GGr0o5Ag0jarw6eLppRXEJkViXrztB-WkNQfO1Q/exec') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 
 /* ---------- PWA: daftarkan service worker (agar bisa di-"Add to Home Screen" & dibuka offline) ---------- */
