@@ -268,6 +268,7 @@
         <select id="slsDesaFilter"><option value="">Semua Desa/Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
         <label class="toggle-label"><input type="checkbox" id="slsOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
+        <button class="btn outline" id="slsResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
     </div>
 
@@ -322,6 +323,7 @@
         <select id="desaStatusFilter"><option value="">Desa &amp; Kelurahan</option><option value="DESA">Desa</option><option value="KELURAHAN">Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="desaRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
         <label class="toggle-label"><input type="checkbox" id="desaOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
+        <button class="btn outline" id="desaResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
     </div>
 
@@ -534,15 +536,36 @@ function highlight(text, q){
   return s.slice(0,idx) + '<mark>' + s.slice(idx, idx+q.length) + '</mark>' + s.slice(idx+q.length);
 }
 function mapsLink(lat,lng){
-  return `<a class="geo-link" href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener">${lat}, ${lng}</a>`;
+  return `<a class="geo-link" href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener">${lat}, ${lng}</a> <button class="action-btn copy-coord" type="button" title="Salin koordinat" onclick="copyCoord(this,${lat},${lng})">📋</button>`;
+}
+async function copyCoord(btn, lat, lng){
+  const text = `${lat}, ${lng}`;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(text);
+    } else {
+      // Fallback untuk browser/HTTP lama yang tidak dukung Clipboard API
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    const original = btn.textContent;
+    btn.textContent = '✅';
+    setTimeout(()=>{ btn.textContent = original; }, 1200);
+  } catch(err){
+    console.error('Gagal menyalin koordinat:', err);
+    alert('Gagal menyalin koordinat. Salin manual: ' + text);
+  }
 }
 function pad(val, len){
   return String(val==null?'':val).trim().padStart(len,'0');
 }
 function verifBadge(row, sheetName, idVal, namaItem){
   if((row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return '';
-  const verifyBtn = `<button class="action-btn verify admin-only" onclick="verifyRow('${sheetName}',${idVal},'${(namaItem||'').replace(/'/g,"\\'")}')">✓ Verifikasi</button>`;
-  return ` <span class="pill unverified">⏳ Belum diverifikasi</span> ${verifyBtn}`;
+  const verifyBtn = `<button class="action-btn verify admin-only" title="Tandai titik ini sebagai sudah dicek dan benar" onclick="verifyRow('${sheetName}',${idVal},'${(namaItem||'').replace(/'/g,"\\'")}')">✓ Verifikasi</button>`;
+  return ` <span class="pill unverified" title="Titik ini baru diperbarui oleh petugas BPS dan belum dicek ulang oleh Admin">⏳ Belum diverifikasi</span> ${verifyBtn}`;
 }
 function haversineKm(lat1,lng1,lat2,lng2){
   if([lat1,lng1,lat2,lng2].some(v=>v==null||isNaN(v))) return 0;
@@ -682,7 +705,56 @@ function createMap(containerId, scrollZoom){
   map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
   addSatelliteToggle(map, containerId);
   addMeasureTool(map, containerId);
+  addLocateMeControl(map, containerId);
   return map;
+}
+
+/* ---------- LOKASI SAYA (GPS) ---------- */
+function addLocateMeControl(map, containerId, options){
+  options = options || {};
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = '🎯';
+  btn.title = 'Gunakan lokasi saya saat ini (GPS)';
+  btn.style.cssText = 'position:absolute;bottom:10px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+  document.getElementById(containerId).appendChild(btn);
+
+  let locMarker = null;
+
+  btn.addEventListener('click', ()=>{
+    if(!navigator.geolocation){
+      alert('Perangkat/browser ini tidak mendukung layanan lokasi (GPS).');
+      return;
+    }
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '⏳';
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        map.flyTo({ center:[lng, lat], zoom:16 });
+        if(options.onLocate){
+          options.onLocate(lat, lng);
+        } else {
+          if(locMarker) locMarker.remove();
+          const el = document.createElement('div');
+          el.style.cssText = 'width:16px;height:16px;border-radius:50%;background:#2f9bd6;border:3px solid #fff;box-shadow:0 0 0 5px rgba(47,155,214,0.35);';
+          locMarker = new maplibregl.Marker({element: el}).setLngLat([lng, lat]).addTo(map);
+        }
+      },
+      (err)=>{
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        let msg = 'Gagal mendapatkan lokasi Anda.';
+        if(err.code === err.PERMISSION_DENIED) msg = 'Izin akses lokasi ditolak. Aktifkan izin GPS untuk situs ini di pengaturan browser/perangkat Anda, lalu coba lagi.';
+        else if(err.code === err.TIMEOUT) msg = 'Waktu mencari lokasi habis. Pastikan GPS aktif dan coba lagi.';
+        alert(msg);
+      },
+      { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
+    );
+  });
 }
 
 /* ---------- ALAT UKUR JARAK (klik dua titik di peta, pakai haversineKm) ---------- */
@@ -864,7 +936,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openSlsCoordEdit(${row.id})">📍 Update</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -883,6 +955,18 @@ slsRingkas.addEventListener('change', ()=>{
   document.getElementById('slsTable').classList.toggle('ringkas', slsRingkas.checked);
 });
 slsOnlyUnverified.addEventListener('change', renderSls);
+document.getElementById('slsResetBtn').addEventListener('click', ()=>{
+  slsSearch.value = '';
+  slsKecFilter.value = '';
+  refreshSlsDesaOptions();
+  slsDesaFilter.value = '';
+  slsRingkas.checked = false;
+  document.getElementById('slsTable').classList.remove('ringkas');
+  slsOnlyUnverified.checked = false;
+  slsSort.key = null; slsSort.dir = 'asc';
+  document.querySelectorAll('#slsTable thead th .arrow').forEach(a=>a.textContent='');
+  renderSls();
+});
 document.getElementById('slsExportBtn').addEventListener('click', ()=>{
   const headers = ['Nama Dusun/SLS','KD KEC','Kecamatan','KD DESA','Desa/Kel','KD SLS','KD SUBSLS','Latitude','Longitude'];
   const rows = slsFilteredCache.map(r=>[r.nmsls, pad(r.kdkec,3), r.nmkec, pad(r.kddesa,3), r.nmdesa, pad(r.kdsls,4), pad(r.kdsubsls,2), r.lat, r.lng]);
@@ -951,7 +1035,7 @@ function renderDesa(){
         <td>${row.jml_sls}</td>
         <td>${row.jml_nonsls}</td>
         <td>${row.jml_bs}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
+        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openDesaEdit(${row.iddesa})">Edit</button>
           <button class="action-btn del" onclick="deleteDesa(${row.iddesa})">Hapus</button>
@@ -969,6 +1053,17 @@ desaRingkas.addEventListener('change', ()=>{
   document.getElementById('desaTable').classList.toggle('ringkas', desaRingkas.checked);
 });
 desaOnlyUnverified.addEventListener('change', renderDesa);
+document.getElementById('desaResetBtn').addEventListener('click', ()=>{
+  desaSearch.value = '';
+  desaKecFilter.value = '';
+  desaStatusFilter.value = '';
+  desaRingkas.checked = false;
+  document.getElementById('desaTable').classList.remove('ringkas');
+  desaOnlyUnverified.checked = false;
+  desaSort.key = null; desaSort.dir = 'asc';
+  document.querySelectorAll('#desaTable thead th .arrow').forEach(a=>a.textContent='');
+  renderDesa();
+});
 document.getElementById('desaExportBtn').addEventListener('click', ()=>{
   const headers = ['Nama Desa/Kel','Status','KD KEC','Kecamatan','KD DESA','Klas','Jml SubSLS','Jml SLS','Jml Non-SLS','Jml BS','Latitude','Longitude'];
   const rows = desaFilteredCache.map(r=>[r.nmdesa, r.status_pem, pad(r.kdkec,3), r.nmkec, pad(r.kddesa,3), r.klas, r.jml_subsls, r.jml_sls, r.jml_nonsls, r.jml_bs, r.lat, r.lng]);
@@ -1395,6 +1490,9 @@ function ensureCoordPickerMap(){
     setCoordPickerPosition(e.lngLat.lat, e.lngLat.lng);
   });
   addSatelliteToggle(coordPickerMapInst, 'coordPickerMap');
+  addLocateMeControl(coordPickerMapInst, 'coordPickerMap', {
+    onLocate: (lat, lng) => setCoordPickerPosition(lat, lng)
+  });
 }
 
 function setCoordPickerPosition(lat, lng){
@@ -1720,7 +1818,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwYejh_21Lg9CbBhxh7VD5C1Qmj6Y1GGr0o5Ag0jarw6eLppRXEJkViXrztB-WkNQfO1Q/exec') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 
 /* ---------- PWA: daftarkan service worker (agar bisa di-"Add to Home Screen" & dibuka offline) ---------- */
