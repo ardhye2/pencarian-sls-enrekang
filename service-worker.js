@@ -10,7 +10,7 @@
  *   naikkan angka CACHE_VERSION di bawah supaya browser pengguna mengambil
  *   ulang file yang sudah diperbarui, bukan memakai cache lama selamanya.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = 'sls-enrekang-' + CACHE_VERSION;
 
 // Berkas inti aplikasi (app shell) yang wajib tersedia offline.
