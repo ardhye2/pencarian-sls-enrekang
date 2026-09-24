@@ -115,6 +115,8 @@
   .modal-field{margin-bottom:10px;}
   .modal-field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px;font-weight:600;}
   .modal-field input,.modal-field select{width:100%;padding:8px 9px;border:1px solid var(--line);border-radius:3px;font-size:13px;font-family:Arial,sans-serif;}
+  .help-body h4{margin:14px 0 4px;font-size:13.5px;color:var(--moss-dark);}
+  .help-body ul{margin:0;padding-left:20px;font-size:12.5px;line-height:1.55;color:var(--ink,inherit);}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
   .action-btn{font-family:Arial,sans-serif;font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:3px;border:1px solid var(--line);background:var(--card-bg);cursor:pointer;margin-right:4px;}
   .action-btn.edit{color:var(--moss-dark);border-color:var(--moss-dark);}
@@ -195,6 +197,14 @@
 
   .map-box{border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-bottom:14px;}
   .map-box .map-title{background:var(--card-bg);padding:8px 14px;font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);border-bottom:1px solid var(--line);}
+  .row-focusable{cursor:pointer;}
+  .row-focusable:hover td{background:rgba(15,127,184,0.07);}
+  tr.row-active td{background:rgba(242,140,27,0.16) !important;}
+  .filters-toggle{display:none;width:100%;margin-top:10px;padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:var(--card-bg);color:var(--moss-dark);font:700 12.5px Arial,sans-serif;cursor:pointer;text-align:left;}
+  @media (max-width:640px){
+    .filters-toggle{display:block;}
+    .filters.collapsed{display:none;}
+  }
   .leaflet-map{height:380px;width:100%;}
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
@@ -228,6 +238,7 @@
       </div>
       <div class="badge">MFD 2025_2</div>
       <div class="role-box">
+        <button class="btn outline" id="helpBtn" style="padding:5px 9px;" title="Cara pakai aplikasi ini">❓ Bantuan</button>
         <button class="btn outline" id="darkModeToggle" style="padding:5px 9px;" title="Ganti mode gelap/terang">🌙</button>
         <span class="role-pill umum" id="rolePill">UMUM</span>
         <button class="btn outline" id="loginBtn" style="padding:5px 11px;">🔒 Login</button>
@@ -483,6 +494,42 @@
   </div>
 
   <footer>Klik titik koordinat untuk membuka lokasi di Google Maps &middot; Data mengikuti struktur MFD Semester 2 Tahun 2025.</footer>
+</div>
+
+<div class="modal-overlay" id="helpModal" style="display:none;">
+  <div class="modal-box" style="max-width:600px;">
+    <h3>❓ Cara Pakai — Pencarian SLS Enrekang</h3>
+    <div class="help-body">
+      <h4>🔎 Mencari data</h4>
+      <ul>
+        <li>Ketik nama dusun/SLS, desa, kecamatan, atau kode di kotak pencarian. Hasil langsung berubah saat mengetik.</li>
+        <li>Di HP, filter (kecamatan, desa, dll.) tersembunyi — tekan <b>▸ Tampilkan filter</b> untuk membukanya.</li>
+        <li><b>✕ Reset Filter</b> mengembalikan semua pencarian ke awal.</li>
+        <li><b>Klik baris tabel</b> untuk menerbangkan peta di bawahnya ke titik itu.</li>
+        <li>Tombol <b>📋</b> di samping link Google Maps menyalin koordinat sekali klik.</li>
+      </ul>
+      <h4>🗺️ Menggunakan peta</h4>
+      <ul>
+        <li>Tombol <b>Default/Satelit</b> mengganti tampilan peta. <b>📏</b> mengukur jarak (klik 2 titik). <b>🎯</b> menampilkan lokasi Anda (GPS).</li>
+        <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
+      </ul>
+      <h4>📍 Petugas BPS (login bps7316)</h4>
+      <ul>
+        <li>Klik <b>🔒 Login</b>, lalu masukkan nama pengguna dan kata sandi yang diberikan Admin. Nama pengguna Anda akan tercatat di Riwayat.</li>
+        <li>Tekan <b>📍 Update</b> pada baris data, lalu tentukan titik baru: klik di peta, cari nama lokasi, atau pakai GPS.</li>
+        <li>Titik yang Anda ubah berstatus <b>⏳ Belum diverifikasi</b> sampai dicek Admin. Ini normal.</li>
+      </ul>
+      <h4>🛠️ Admin</h4>
+      <ul>
+        <li>Bisa <b>Edit</b>, <b>Hapus</b>, tambah data, dan menandai <b>✓ Verifikasi</b> titik dari petugas.</li>
+        <li>Centang <b>belum diverifikasi</b> di tabel untuk melihat titik yang perlu dicek.</li>
+        <li>Tab <b>Riwayat Update</b> mencatat siapa mengubah apa dan kapan.</li>
+      </ul>
+      <h4>📱 Pasang di HP</h4>
+      <ul><li>Buka lewat browser, lalu pilih <b>Tambahkan ke layar utama</b> agar bisa dibuka seperti aplikasi.</li></ul>
+    </div>
+    <div class="modal-actions"><button class="btn" id="helpClose">Mengerti</button></div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="editModal" style="display:none;">
@@ -866,6 +913,32 @@ function fitToPoints(map, points){
   map.fitBounds(bounds, {padding:40, maxZoom:13, duration:0});
 }
 
+
+/* Klik baris tabel -> peta terbang ke titik yang sama & buka popup-nya */
+let _focusedMarker = null;
+function focusRowOnMap(ev, tr, kind, lat, lng){
+  if(ev.target.closest('button, a, input, select, .verif-badge')) return; // jangan ganggu tombol/link di dalam baris
+  if(lat==null || lng==null || isNaN(lat) || isNaN(lng)) return;
+  const map = kind==='sls' ? mapSls : mapDesa;
+  const arr = kind==='sls' ? markersSls : markersDesa;
+  if(!map) return;
+  const table = tr.closest('table');
+  table.querySelectorAll('tr.row-active').forEach(r=>r.classList.remove('row-active'));
+  tr.classList.add('row-active');
+  if(_focusedMarker){ _focusedMarker.style.transform=''; _focusedMarker.style.zIndex=''; _focusedMarker.style.background='#0f7fb8'; }
+  const m = arr.find(mk=>{ const ll = mk.getLngLat(); return Math.abs(ll.lat-lat)<1e-9 && Math.abs(ll.lng-lng)<1e-9; });
+  map.getContainer().closest('.map-box').scrollIntoView({behavior:'smooth', block:'nearest'});
+  map.flyTo({center:[lng,lat], zoom:Math.max(map.getZoom(),15), essential:true});
+  if(m){
+    const el = m.getElement();
+    el.style.background = '#f28c1b';
+    el.style.transform = 'scale(1.5)';
+    el.style.zIndex = '5';
+    _focusedMarker = el;
+    if(!m.getPopup().isOpen()) m.togglePopup();
+  }
+}
+
 function updateMap(markersArr, map, points, maxMarkers){
   clearMarkers(markersArr);
   const pts = points.slice(0, maxMarkers).filter(p=>p.lat!=null && p.lng!=null && !isNaN(p.lat) && !isNaN(p.lng));
@@ -927,7 +1000,7 @@ function renderSls(){
     slsBody.innerHTML = `<tr class="empty-row"><td colspan="10">Tidak ada data yang cocok dengan pencarian.</td></tr>`;
   } else {
     const rows = filtered.slice(0,500).map((row,i)=>`
-      <tr>
+      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng})">
         <td class="no">${i+1}</td>
         <td>${highlight(row.nmsls,q)}</td>
         <td class="col-code">${pad(row.kdkec,3)}</td>
@@ -1023,7 +1096,7 @@ function renderDesa(){
     desaBody.innerHTML = `<tr class="empty-row"><td colspan="13">Tidak ada desa/kelurahan yang cocok.</td></tr>`;
   } else {
     desaBody.innerHTML = filtered.map((row,i)=>`
-      <tr>
+      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'desa',${row.lat},${row.lng})">
         <td class="no">${i+1}</td>
         <td>${highlight(row.nmdesa,q)}</td>
         <td><span class="pill ${row.status_pem==='DESA'?'desa':'kel'}">${row.status_pem}</span></td>
@@ -1159,18 +1232,8 @@ document.getElementById('rekapExportBtn').addEventListener('click', ()=>{
 document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPanel('panel-rekap'));
 
 /* ---------- ROLE / LOGIN ---------- */
-// ---------- AKUN PENGGUNA (multi-admin & multi-petugas bps7316) ----------
-// Tambah/ubah/hapus akun di daftar ini sesuai kebutuhan tim Anda.
-// "role" harus salah satu dari: 'admin' atau 'bps7316'.
-const USER_ACCOUNTS = [
-  { username: 'Admin Utama', password: 'admin123', role: 'admin' },
-  // { username: 'Nama Admin Lain', password: 'sandi-lain', role: 'admin' },
-  { username: 'Petugas BPS 7316', password: 'bps7316', role: 'bps7316' },
-  // { username: 'Nama Petugas Lain', password: 'sandi-lain', role: 'bps7316' },
-];
-// Kunci rahasia yang dikirim ke backend saat tambah/ubah/hapus data.
-// HARUS SAMA PERSIS dengan ADMIN_SECRET di Code.gs (Google Apps Script Anda).
-const ADMIN_SECRET = 'adminIPDS7316!xz2026';
+// Akun & kata sandi TIDAK disimpan di file ini. Login diperiksa oleh backend Google Apps Script
+// (lihat fungsi simpanAkun di Code.gs), yang mengembalikan token sesi.
 /* ---------- MODE GELAP ---------- */
 const DARK_MODE_KEY = 'sls_enrekang_dark_mode';
 const darkModeToggle = document.getElementById('darkModeToggle');
@@ -1188,10 +1251,8 @@ darkModeToggle.addEventListener('click', ()=>{
   try { localStorage.setItem(DARK_MODE_KEY, nowDark ? '1' : '0'); } catch(e){ /* abaikan kalau gagal disimpan */ }
 });
 
-// Kunci rahasia terpisah untuk peran bps7316 — HANYA diizinkan backend untuk aksi
-// "update_coords" (perbarui titik koordinat saja), tidak untuk tambah/edit field lain/hapus.
-// HARUS SAMA PERSIS dengan BPS_SECRET di Code.gs (Google Apps Script Anda).
-const BPS_SECRET = 'Bps7316!xz2026';
+const AUTH_KEY = 'sls_enrekang_auth';
+let authToken = '';
 let currentRole = 'umum';
 let currentUserName = '';
 const rolePill = document.getElementById('rolePill');
@@ -1208,30 +1269,55 @@ function setRole(role){
   logoutBtn.style.display = (role==='umum') ? 'none' : 'inline-block';
 }
 
+async function postApi(payload){
+  const res = await fetch(APPS_SCRIPT_URL, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'}, // hindari CORS preflight pada Apps Script
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+function forceLogout(){
+  authToken = ''; currentUserName = '';
+  try { sessionStorage.removeItem(AUTH_KEY); } catch(e){}
+  setRole('umum');
+}
+
 loginBtn.addEventListener('click', ()=>{
+  if(!APPS_SCRIPT_URL){ alert('Login membutuhkan koneksi ke Google Sheets (mode offline tidak mendukung login).'); return; }
   openModal('Login', [
     {key:'username', label:'Nama Pengguna'},
     {key:'password', label:'Kata Sandi', type:'password'}
-  ], {}, (result)=>{
-    const match = USER_ACCOUNTS.find(a =>
-      a.username.trim().toLowerCase() === (result.username||'').trim().toLowerCase() &&
-      a.password === result.password
-    );
-    if(match){
-      currentUserName = match.username;
-      setRole(match.role);
-    } else {
-      alert('Nama pengguna atau kata sandi salah.');
+  ], {}, async (result)=>{
+    try {
+      const r = await postApi({ action:'login', username: result.username, password: result.password });
+      if(r && r.success){
+        authToken = r.token; currentUserName = r.username;
+        try { sessionStorage.setItem(AUTH_KEY, JSON.stringify({token:r.token, username:r.username, role:r.role})); } catch(e){}
+        setRole(r.role);
+      } else {
+        alert((r && r.error) || 'Login gagal.');
+      }
+    } catch(err){
+      console.error(err);
+      alert('Login gagal. Periksa koneksi internet.');
     }
   });
 });
 
 logoutBtn.addEventListener('click', ()=>{
-  currentUserName = '';
-  setRole('umum');
+  const t = authToken;
+  forceLogout();
+  if(t && APPS_SCRIPT_URL){ postApi({ action:'logout', token:t }).catch(()=>{}); }
 });
 
 setRole('umum');
+// Pulihkan login setelah halaman dimuat ulang (token tetap divalidasi server di setiap aksi).
+try {
+  const saved = JSON.parse(sessionStorage.getItem(AUTH_KEY) || 'null');
+  if(saved && saved.token){ authToken = saved.token; currentUserName = saved.username; setRole(saved.role); }
+} catch(e){}
 
 /* ---------- SINKRONISASI GOOGLE SHEETS ---------- */
 const SYNC_KEY = 'sls_enrekang_apps_script_url';
@@ -1306,7 +1392,7 @@ async function syncFromSheets(silent){
 
 async function pushToSheets(sheetName, action, data, deleteId){
   if(!APPS_SCRIPT_URL) return; // mode offline: perubahan hanya tersimpan di sesi ini
-  const payload = { sheet: sheetName, action, data, id: deleteId, secret: ADMIN_SECRET, updated_by: currentUserName || '(tidak diisi)' };
+  const payload = { sheet: sheetName, action, data, id: deleteId, token: authToken, updated_by: currentUserName || '(tidak diisi)' };
   try {
     const res = await fetch(APPS_SCRIPT_URL, {
       method:'POST',
@@ -1314,7 +1400,7 @@ async function pushToSheets(sheetName, action, data, deleteId){
       body: JSON.stringify(payload)
     });
     const result = await res.json().catch(()=>null);
-    if(result && result.success === false){
+    if(result && result.success === false){ if(result.authError) forceLogout();
       alert('Gagal menyimpan ke Google Sheets: ' + (result.error || 'ditolak server.'));
     }
   } catch(err){
@@ -1332,10 +1418,9 @@ async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, 
     alert('Belum tersambung ke Google Sheets — perubahan koordinat hanya tersimpan di tampilan sesi ini.');
     return;
   }
-  const secret = (currentRole === 'admin') ? ADMIN_SECRET : BPS_SECRET;
   const idKey = (sheetName === 'desa') ? 'iddesa' : 'id';
   const payload = {
-    sheet: sheetName, action:'update_coords', secret,
+    sheet: sheetName, action:'update_coords', token: authToken,
     data:{
       [idKey]: idValue, lat, lng,
       old_lat: oldLat, old_lng: oldLng,
@@ -1352,7 +1437,7 @@ async function pushCoordsToSheets(sheetName, idValue, lat, lng, oldLat, oldLng, 
       body: JSON.stringify(payload)
     });
     const result = await res.json().catch(()=>null);
-    if(result && result.success === false){
+    if(result && result.success === false){ if(result.authError) forceLogout();
       alert('Gagal menyimpan koordinat: ' + (result.error || 'ditolak server.'));
     }
   } catch(err){
@@ -1392,7 +1477,9 @@ function rebuildRiwayatFilterOptions(){
   riwayatAksiFilter.innerHTML = '<option value="">Semua Aksi</option>' + aksi.map(a=>`<option value="${a}">${a}</option>`).join('');
 }
 
-function applyRiwayatFilters(){
+const RIWAYAT_PAGE = 100;
+let riwayatShown = RIWAYAT_PAGE;
+function applyRiwayatFilters(keepShown){
   const q = (riwayatSearch.value||'').trim().toLowerCase();
   const petugas = riwayatPetugasFilter.value;
   const aksi = riwayatAksiFilter.value;
@@ -1413,10 +1500,12 @@ function applyRiwayatFilters(){
   });
   rows.sort((a,b)=> new Date(b.waktu) - new Date(a.waktu));
 
+  riwayatCurrentFiltered = rows;
+  if(!keepShown) riwayatShown = RIWAYAT_PAGE;
   if(rows.length === 0){
     riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Tidak ada catatan yang cocok.</td></tr>';
   } else {
-    riwayatBody.innerHTML = rows.map((r,i)=>`
+    riwayatBody.innerHTML = rows.slice(0, riwayatShown).map((r,i)=>`
       <tr>
         <td class="no">${i+1}</td>
         <td>${new Date(r.waktu).toLocaleString('id-ID')}</td>
@@ -1428,9 +1517,11 @@ function applyRiwayatFilters(){
         <td>${r.diperbarui_oleh||'-'}</td>
         <td>${(r.peran||'-').toUpperCase()}</td>
       </tr>`).join('');
+    if(rows.length > riwayatShown){
+      riwayatBody.insertAdjacentHTML('beforeend', `<tr class="empty-row"><td colspan="9"><button class="action-btn" onclick="riwayatShown+=RIWAYAT_PAGE;applyRiwayatFilters(true)">Tampilkan ${Math.min(RIWAYAT_PAGE, rows.length-riwayatShown)} catatan lagi</button></td></tr>`);
+    }
   }
-  riwayatCount.innerHTML = `Menampilkan <b>${rows.length}</b> dari <b>${riwayatRawRows.length}</b> catatan riwayat.`;
-  riwayatCurrentFiltered = rows;
+  riwayatCount.innerHTML = `Menampilkan <b>${Math.min(rows.length, riwayatShown)}</b> dari <b>${rows.length}</b> hasil (total catatan: <b>${riwayatRawRows.length}</b>).`;
 }
 let riwayatCurrentFiltered = [];
 
@@ -1443,7 +1534,13 @@ async function loadRiwayat(){
   }
   riwayatCount.textContent = 'Memuat riwayat...';
   try {
-    const rows = await fetchSheetRows('riwayat');
+    const rows = await postApi({ action:'get_riwayat', token: authToken });
+    if(rows && rows.authError){
+      forceLogout();
+      riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Sesi login berakhir. Silakan login ulang untuk melihat riwayat.</td></tr>';
+      riwayatCount.textContent = 'Perlu login.';
+      return;
+    }
     riwayatRawRows = Array.isArray(rows) ? rows : [];
     rebuildRiwayatFilterOptions();
     if(riwayatRawRows.length === 0){
@@ -1459,8 +1556,8 @@ async function loadRiwayat(){
   }
 }
 [riwayatSearch, riwayatPetugasFilter, riwayatAksiFilter, riwayatDariTgl, riwayatSampaiTgl].forEach(el=>{
-  el.addEventListener('input', applyRiwayatFilters);
-  el.addEventListener('change', applyRiwayatFilters);
+  el.addEventListener('input', ()=>applyRiwayatFilters());
+  el.addEventListener('change', ()=>applyRiwayatFilters());
 });
 document.getElementById('riwayatExportBtn').addEventListener('click', ()=>{
   const headers = ['Waktu','Data','Aksi','Nama Item','Kecamatan','Ringkasan Perubahan','Diperbarui Oleh','Peran'];
@@ -1630,12 +1727,12 @@ async function verifyRow(sheetName, idVal, namaItem){
   if(sheetName==='sls'){ renderSls(); } else { renderDesa(); }
   if(!APPS_SCRIPT_URL) return;
   const idKey = sheetName==='desa' ? 'iddesa' : 'id';
-  const payload = { sheet: sheetName, action:'verify', secret: ADMIN_SECRET,
+  const payload = { sheet: sheetName, action:'verify', token: authToken,
     data: { [idKey]: idVal, nama_item: namaItem, nmkec: row ? row.nmkec : '', updated_by: currentUserName||'(tidak diisi)' } };
   try {
     const res = await fetch(APPS_SCRIPT_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
     const result = await res.json().catch(()=>null);
-    if(result && result.success === false){ alert('Gagal menandai verifikasi: ' + (result.error||'ditolak server.')); }
+    if(result && result.success === false){ if(result.authError) forceLogout(); alert('Gagal menandai verifikasi: ' + (result.error||'ditolak server.')); }
   } catch(err){
     console.error(err);
     alert('Gagal menandai verifikasi. Periksa koneksi internet.');
@@ -1818,7 +1915,7 @@ renderSls();
 renderDesa();
 renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
-if(APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbyPuzXx5o_MZ-zhNR6yNre0WwpaVpE7bPJbsoiFZVls5bKvS7qZvSa1Nve_doqhCZWY/exec') APPS_SCRIPT_URL = '';
+if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
 
 /* ---------- PWA: daftarkan service worker (agar bisa di-"Add to Home Screen" & dibuka offline) ---------- */
@@ -1828,6 +1925,29 @@ if('serviceWorker' in navigator){
       .catch(err => console.warn('Registrasi service worker gagal:', err));
   });
 }
+
+/* Panel filter bisa dilipat di layar HP (di desktop tombolnya disembunyikan lewat CSS) */
+document.querySelectorAll('.search-panel > .filters').forEach(f=>{
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'filters-toggle';
+  const sync = ()=>{ btn.textContent = (f.classList.contains('collapsed') ? '▸ Tampilkan filter' : '▾ Sembunyikan filter'); };
+  f.classList.add('collapsed');
+  sync();
+  btn.addEventListener('click', ()=>{ f.classList.toggle('collapsed'); sync(); });
+  f.parentNode.insertBefore(btn, f);
+});
+
+/* Modal bantuan */
+(function(){
+  const m = document.getElementById('helpModal');
+  const open = ()=>{ m.style.display='flex'; };
+  const close = ()=>{ m.style.display='none'; };
+  document.getElementById('helpBtn').addEventListener('click', open);
+  document.getElementById('helpClose').addEventListener('click', close);
+  m.addEventListener('click', e=>{ if(e.target===m) close(); });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && m.style.display==='flex') close(); });
+})();
 </script>
 </body>
 </html>
