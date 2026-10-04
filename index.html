@@ -212,6 +212,37 @@
     .filters-toggle{display:block;}
     .filters.collapsed{display:none;}
   }
+  footer.app-footer{
+    margin-top:34px;
+    padding-top:16px;
+    border-top:3px solid var(--moss-dark);
+    position:relative;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:14px;
+    font-family:'Inter',Arial,sans-serif;
+  }
+  footer.app-footer::before{
+    content:'';
+    position:absolute;
+    top:-3px; left:-20px; right:-20px;
+    height:5px;
+    background:linear-gradient(90deg, var(--moss) 0%, var(--moss) 34%, var(--clay) 34%, var(--clay) 67%, var(--accent-green) 67%, var(--accent-green) 100%);
+  }
+  .footer-left{display:flex;align-items:center;gap:12px;}
+  .footer-left img{height:34px;width:auto;flex:0 0 auto;opacity:0.9;}
+  .footer-org{font-family:'Plus Jakarta Sans',sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);line-height:1.4;}
+  .footer-org span{display:block;font-weight:500;color:var(--muted);font-size:11.5px;}
+  .footer-right{text-align:right;font-size:11.5px;color:var(--muted);line-height:1.6;}
+  .footer-right a{color:var(--moss-dark);text-decoration:none;font-weight:600;}
+  .footer-right a:hover{text-decoration:underline;}
+  @media (max-width:640px){
+    footer.app-footer{flex-direction:column;text-align:center;}
+    .footer-left{flex-direction:column;text-align:center;}
+    .footer-right{text-align:center;}
+  }
   .leaflet-map{height:380px;width:100%;}
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
@@ -511,7 +542,7 @@
       </div>
     </div>
     <div class="footer-right">
-      Jl. Jend. Sudirman, Enrekang, Sulawesi Selatan<br>
+      Jl. Sultan Hasanuddin Poros Enrekang-Toraja Km. 2, Kel. Puserren, Kec. Enrekang, Kab. Enrekang 91713<br>
       Email: <a href="mailto:ipdsekg@gmail.com">ipdsekg@gmail.com</a> &nbsp;·&nbsp;
       <a href="https://enrekangkab.bps.go.id" target="_blank" rel="noopener">enrekangkab.bps.go.id</a>
     </div>
