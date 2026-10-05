@@ -61,9 +61,12 @@
   body{
     margin:0;
     background:var(--paper);
+    background-image:radial-gradient(circle at top right, rgba(46,168,224,0.07), transparent 55%), radial-gradient(circle at bottom left, rgba(63,145,66,0.05), transparent 50%);
+    background-attachment:fixed;
     color:var(--ink);
     font-family:'Inter','Segoe UI',Arial,sans-serif;
     padding:26px 20px 60px;
+    overflow-x:hidden;
   }
   .wrap{max-width:1220px;margin:0 auto;}
   header{
@@ -88,7 +91,7 @@
   .header-left img{height:56px;width:auto;flex:0 0 auto;}
   .org-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:800;color:var(--moss-dark);letter-spacing:0.2px;line-height:1.3;}
   .org-sub{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:700;color:var(--clay);letter-spacing:0.2px;line-height:1.3;}
-  .header-right{display:flex;align-items:center;gap:14px;text-align:right;}
+  .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;text-align:right;}
   h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:20px;margin:0;font-weight:800;letter-spacing:-0.2px;}
   .subtitle{font-family:'Inter',Arial,sans-serif;font-size:12px;color:var(--muted);margin-top:3px;}
   .badge{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;background:linear-gradient(135deg, var(--moss) 0%, var(--moss-dark) 100%);color:#fff;padding:6px 13px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(13,110,168,0.25);}
@@ -751,7 +754,7 @@ function wireSort(tableId, state, rerenderFn){
 /* ---------- PETA (MapLibre GL + OpenFreeMap, gaya mirip Google Maps) ---------- */
 let mapSls=null, markersSls=[], mapDesa=null, markersDesa=[];
 let mapPeta=null, markersPetaSls=[], markersPetaDesa=[];
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
 // Style satelit (raster, gratis, tanpa API key) untuk dipakai saat mode "Satelit" diaktifkan.
 const SATELLITE_STYLE = {
   version: 8,
