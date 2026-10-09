@@ -197,13 +197,19 @@
   .col-code{}
   .ringkas .col-code{display:none;}
 
-  .chart-box{background:var(--card-bg);border:1px solid var(--line);border-radius:4px;padding:16px 18px;margin-bottom:14px;font-family:Arial,sans-serif;}
-  .chart-title{font-size:13px;font-weight:700;color:var(--moss-dark);margin-bottom:10px;}
-  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;}
-  .bar-label{width:110px;flex:0 0 110px;text-align:right;color:var(--ink);}
-  .bar-track{flex:1;background:var(--track-bg);border-radius:3px;overflow:hidden;height:16px;position:relative;}
-  .bar-fill{background:var(--bar);height:100%;border-radius:3px 0 0 3px;}
-  .bar-val{width:34px;flex:0 0 34px;color:var(--muted);}
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+  @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} }
+  .chart-box{background:var(--card-bg);border:1px solid var(--line);border-top:3px solid var(--moss);border-radius:10px;padding:16px 18px;margin-bottom:0;font-family:Arial,sans-serif;box-shadow:0 2px 8px rgba(19,36,55,0.05);max-height:520px;overflow-y:auto;}
+  .chart-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--moss-dark);margin-bottom:12px;position:sticky;top:0;background:var(--card-bg);padding-bottom:4px;}
+  .chart-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;transition:transform 0.1s;}
+  .bar-row:hover{transform:translateX(2px);}
+  .bar-row:hover .bar-label{color:var(--moss-dark);font-weight:700;}
+  .bar-label{width:108px;flex:0 0 108px;text-align:right;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bar-track{flex:1;background:var(--track-bg);border-radius:8px;overflow:hidden;height:16px;position:relative;}
+  .bar-fill{background:linear-gradient(90deg, var(--moss) 0%, var(--bar) 100%);height:100%;border-radius:8px;transition:width 0.4s ease;}
+  #chartSls .bar-fill{background:linear-gradient(90deg, var(--clay) 0%, #f2a94a 100%);}
+  .bar-val{width:34px;flex:0 0 34px;color:var(--ink);font-weight:700;}
 
   .map-box{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(19,36,55,0.05);}
   .map-box .map-title{background:var(--card-bg);padding:8px 14px;font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);border-bottom:1px solid var(--line);}
@@ -438,13 +444,15 @@
 
   <!-- PANEL 4: REKAP KECAMATAN -->
   <div class="panel" id="panel-rekap">
-    <div class="chart-box">
-      <div class="chart-title">Jumlah Desa/Kelurahan per Kecamatan</div>
-      <div id="chartDesa"></div>
-    </div>
-    <div class="chart-box">
-      <div class="chart-title">Jumlah SLS (Dusun) per Kecamatan</div>
-      <div id="chartSls"></div>
+    <div class="chart-grid">
+      <div class="chart-box">
+        <div class="chart-title"><span class="chart-dot" style="background:var(--moss);"></span>Jumlah Desa/Kelurahan per Kecamatan</div>
+        <div id="chartDesa"></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span>Jumlah SLS (Dusun) per Kecamatan</div>
+        <div id="chartSls"></div>
+      </div>
     </div>
     <div class="count-line">
       <span>Rekap seluruh kecamatan di Kabupaten Enrekang</span>
