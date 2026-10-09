@@ -189,7 +189,11 @@
   mark{background:var(--highlight);color:var(--ink);padding:0 1px;border-radius:2px;}
   .geo-link{color:var(--moss-dark);text-decoration:none;font-weight:600;border-bottom:1px dotted var(--moss-dark);}
   .geo-link:hover{color:var(--clay);border-color:var(--clay);}
-  .empty-row td{text-align:center;padding:34px 10px;font-family:'Inter',sans-serif;font-style:italic;color:var(--muted);}
+  .empty-row td{text-align:center;padding:30px 10px;font-family:'Inter',sans-serif;color:var(--muted);}
+  .empty-state{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .empty-state-icon{font-size:26px;opacity:0.55;margin-bottom:2px;}
+  .empty-state-title{font-weight:700;color:var(--ink);font-style:normal;font-size:13.5px;}
+  .empty-state-sub{font-style:normal;font-size:12px;color:var(--muted);max-width:360px;}
   .pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;}
   .pill.desa{background:#dcedf7;color:var(--moss-dark);}
   .pill.kel{background:#fbe8cc;color:var(--clay);}
@@ -203,6 +207,8 @@
   .chart-box{background:var(--card-bg);border:1px solid var(--line);border-top:3px solid var(--moss);border-radius:10px;padding:16px 18px;margin-bottom:0;font-family:Arial,sans-serif;box-shadow:0 2px 8px rgba(19,36,55,0.05);max-height:520px;overflow-y:auto;}
   .chart-title{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--moss-dark);margin-bottom:12px;position:sticky;top:0;background:var(--card-bg);padding-bottom:4px;}
   .chart-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;}
+  .chart-png-btn{margin-left:auto;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--card-bg);color:var(--muted);cursor:pointer;transition:opacity 0.15s;}
+  .chart-png-btn:hover{opacity:0.75;}
   .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px;transition:transform 0.1s;}
   .bar-row:hover{transform:translateX(2px);}
   .bar-row:hover .bar-label{color:var(--moss-dark);font-weight:700;}
@@ -455,11 +461,11 @@
   <div class="panel" id="panel-rekap">
     <div class="chart-grid">
       <div class="chart-box">
-        <div class="chart-title"><span class="chart-dot" style="background:var(--moss);"></span>Jumlah Desa/Kelurahan per Kecamatan</div>
+        <div class="chart-title"><span class="chart-dot" style="background:var(--moss);"></span>Jumlah Desa/Kelurahan per Kecamatan<button class="chart-png-btn" id="chartDesaPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button></div>
         <div id="chartDesa"></div>
       </div>
       <div class="chart-box">
-        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span>Jumlah SLS (Dusun) per Kecamatan</div>
+        <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span>Jumlah SLS (Dusun) per Kecamatan<button class="chart-png-btn" id="chartSlsPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button></div>
         <div id="chartSls"></div>
       </div>
     </div>
@@ -528,6 +534,7 @@
     <div class="count-line">
       <span id="riwayatCount">Memuat riwayat...</span>
       <span class="action-row">
+        <button class="btn outline" id="riwayatPrintBtn">Cetak / PDF</button>
         <button class="btn" id="riwayatExportBtn">Unduh CSV</button>
       </span>
     </div>
@@ -1125,6 +1132,26 @@ function refreshSlsDesaOptions(){
 }
 refreshSlsDesaOptions();
 
+const SLS_FILTER_KEY = 'sls_enrekang_filter_sls';
+try {
+  const savedSls = JSON.parse(localStorage.getItem(SLS_FILTER_KEY) || 'null');
+  if(savedSls){
+    slsSearch.value = savedSls.q || '';
+    if(savedSls.kec) slsKecFilter.value = savedSls.kec;
+    refreshSlsDesaOptions();
+    if(savedSls.desa) slsDesaFilter.value = savedSls.desa;
+    slsRingkas.checked = !!savedSls.ringkas;
+    document.getElementById('slsTable').classList.toggle('ringkas', slsRingkas.checked);
+    slsOnlyUnverified.checked = !!savedSls.onlyUnverified;
+  }
+} catch(e){}
+function saveSlsFilters(){
+  try{ localStorage.setItem(SLS_FILTER_KEY, JSON.stringify({
+    q: slsSearch.value, kec: slsKecFilter.value, desa: slsDesaFilter.value,
+    ringkas: slsRingkas.checked, onlyUnverified: slsOnlyUnverified.checked
+  })); }catch(e){}
+}
+
 function renderSlsBreadcrumb(){
   const kec = slsKecFilter.value, desa = slsDesaFilter.value;
   let parts = ['Semua Kecamatan'];
@@ -1174,7 +1201,13 @@ function renderSls(){
 
   slsBody.innerHTML = '';
   if(filtered.length===0){
-    slsBody.innerHTML = `<tr class="empty-row"><td colspan="10">Tidak ada data yang cocok dengan pencarian.</td></tr>`;
+    slsBody.innerHTML = `<tr class="empty-row"><td colspan="10">
+      <div class="empty-state">
+        <div class="empty-state-icon">🔍</div>
+        <div class="empty-state-title">Tidak ada dusun/SLS yang cocok</div>
+        <div class="empty-state-sub">Coba kata kunci yang lebih singkat, atau periksa ejaan nama dusun/kecamatan.</div>
+        <button class="btn outline" style="margin-top:8px;" onclick="document.getElementById('slsResetBtn').click()">✕ Reset Filter</button>
+      </div></td></tr>`;
   } else {
     const rows = filtered.slice(0,500).map((row,i)=>`
       <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng})">
@@ -1198,12 +1231,14 @@ function renderSls(){
 
   updateMap(markersSls, mapSls, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmsls,sub:`${r.nmdesa}, ${r.nmkec}`})), 500);
   updateTabBadges();
+  saveSlsFilters();
 }
 slsSearch.addEventListener('input', renderSls);
 slsKecFilter.addEventListener('change', ()=>{ refreshSlsDesaOptions(); renderSls(); });
 slsDesaFilter.addEventListener('change', renderSls);
 slsRingkas.addEventListener('change', ()=>{
   document.getElementById('slsTable').classList.toggle('ringkas', slsRingkas.checked);
+  saveSlsFilters();
 });
 slsOnlyUnverified.addEventListener('change', renderSls);
 document.getElementById('slsResetBtn').addEventListener('click', ()=>{
@@ -1238,9 +1273,29 @@ const desaBreadcrumb = document.getElementById('desaBreadcrumb');
 const desaSort = {key:null, dir:'asc'};
 let desaFilteredCache = [];
 
+const DESA_FILTER_KEY = 'sls_enrekang_filter_desa';
+function saveDesaFilters(){
+  try{ localStorage.setItem(DESA_FILTER_KEY, JSON.stringify({
+    q: desaSearch.value, kec: desaKecFilter.value, status: desaStatusFilter.value,
+    ringkas: desaRingkas.checked, onlyUnverified: desaOnlyUnverified.checked
+  })); }catch(e){}
+}
+
 uniqueSorted(DESA_DATA.map(d=>d.nmkec)).forEach(v=>{
   const o=document.createElement('option'); o.value=v; o.textContent=v; desaKecFilter.appendChild(o);
 });
+
+try {
+  const savedDesa = JSON.parse(localStorage.getItem(DESA_FILTER_KEY) || 'null');
+  if(savedDesa){
+    desaSearch.value = savedDesa.q || '';
+    if(savedDesa.kec) desaKecFilter.value = savedDesa.kec;
+    if(savedDesa.status) desaStatusFilter.value = savedDesa.status;
+    desaRingkas.checked = !!savedDesa.ringkas;
+    document.getElementById('desaTable').classList.toggle('ringkas', desaRingkas.checked);
+    desaOnlyUnverified.checked = !!savedDesa.onlyUnverified;
+  }
+} catch(e){}
 
 function renderDesaBreadcrumb(){
   const kec = desaKecFilter.value, status = desaStatusFilter.value;
@@ -1271,7 +1326,13 @@ function renderDesa(){
 
   desaBody.innerHTML = '';
   if(filtered.length===0){
-    desaBody.innerHTML = `<tr class="empty-row"><td colspan="13">Tidak ada desa/kelurahan yang cocok.</td></tr>`;
+    desaBody.innerHTML = `<tr class="empty-row"><td colspan="13">
+      <div class="empty-state">
+        <div class="empty-state-icon">🔍</div>
+        <div class="empty-state-title">Tidak ada desa/kelurahan yang cocok</div>
+        <div class="empty-state-sub">Coba kata kunci yang lebih singkat, atau periksa ejaan nama desa/kecamatan.</div>
+        <button class="btn outline" style="margin-top:8px;" onclick="document.getElementById('desaResetBtn').click()">✕ Reset Filter</button>
+      </div></td></tr>`;
   } else {
     desaBody.innerHTML = filtered.map((row,i)=>`
       <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'desa',${row.lat},${row.lng})">
@@ -1297,12 +1358,14 @@ function renderDesa(){
 
   updateMap(markersDesa, mapDesa, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmdesa,sub:r.nmkec})), 500);
   updateTabBadges();
+  saveDesaFilters();
 }
 desaSearch.addEventListener('input', renderDesa);
 desaKecFilter.addEventListener('change', renderDesa);
 desaStatusFilter.addEventListener('change', renderDesa);
 desaRingkas.addEventListener('change', ()=>{
   document.getElementById('desaTable').classList.toggle('ringkas', desaRingkas.checked);
+  saveDesaFilters();
 });
 desaOnlyUnverified.addEventListener('change', renderDesa);
 document.getElementById('desaResetBtn').addEventListener('click', ()=>{
@@ -1417,6 +1480,51 @@ document.getElementById('rekapExportBtn').addEventListener('click', ()=>{
 });
 document.getElementById('rekapPrintBtn').addEventListener('click', ()=>printPanel('panel-rekap'));
 
+/* Unduh salah satu grafik batang Rekap sebagai gambar PNG (digambar manual di <canvas>,
+   tidak memakai library luar, supaya tetap ringan dan bekerja walau PWA sedang offline). */
+function downloadBarChartPng(data, labelKey, valueKey, color, title, filename){
+  const sorted = [...data].sort((a,b)=>b[valueKey]-a[valueKey]);
+  const rowH = 26, padTop = 64, padLeft = 150, padRight = 56, chartW = 620;
+  const canvas = document.createElement('canvas');
+  canvas.width = padLeft + chartW + padRight;
+  canvas.height = padTop + sorted.length*rowH + 24;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0d6ea8';
+  ctx.font = 'bold 17px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText(title, 20, 30);
+  ctx.fillStyle = '#6b7786';
+  ctx.font = '11px Arial';
+  ctx.fillText('Badan Pusat Statistik Kabupaten Enrekang · ' + new Date().toLocaleDateString('id-ID'), 20, 48);
+  const max = Math.max(...sorted.map(d=>d[valueKey]));
+  sorted.forEach((d,i)=>{
+    const y = padTop + i*rowH;
+    ctx.fillStyle = '#132437';
+    ctx.font = '11.5px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(d[labelKey], padLeft - 10, y + rowH/2 + 4);
+    const w = Math.max(2, (d[valueKey]/max) * chartW);
+    ctx.fillStyle = color;
+    ctx.fillRect(padLeft, y + 4, w, rowH - 10);
+    ctx.fillStyle = '#132437';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11.5px Arial';
+    ctx.fillText(String(d[valueKey]), padLeft + w + 8, y + rowH/2 + 4);
+  });
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+document.getElementById('chartDesaPngBtn').addEventListener('click', ()=>{
+  downloadBarChartPng(KEC_AGG, 'nmkec', 'jml_desa', '#2ea8e0', 'Jumlah Desa/Kelurahan per Kecamatan', 'rekap_desa_per_kecamatan.png');
+});
+document.getElementById('chartSlsPngBtn').addEventListener('click', ()=>{
+  downloadBarChartPng(KEC_AGG, 'nmkec', 'jml_sls', '#e08b1d', 'Jumlah SLS (Dusun) per Kecamatan', 'rekap_sls_per_kecamatan.png');
+});
+
 /* ---------- ROLE / LOGIN ---------- */
 // Akun & kata sandi TIDAK disimpan di file ini. Login diperiksa oleh backend Google Apps Script
 // (lihat fungsi simpanAkun di Code.gs), yang mengembalikan token sesi.
@@ -1517,10 +1625,26 @@ const syncBtn = document.getElementById('syncBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 let isSyncing = false;
 
+let lastSyncDate = null;
 function setSyncStatus(state, msg){
   syncStatusEl.className = 'sync-status ' + state;
   syncStatusEl.textContent = msg;
+  if(state === 'online') lastSyncDate = new Date();
 }
+function relativeTimeId(date){
+  const diffMin = Math.round((Date.now() - date.getTime()) / 60000);
+  if(diffMin < 1) return 'baru saja';
+  if(diffMin < 60) return `${diffMin} menit lalu`;
+  const diffJam = Math.round(diffMin / 60);
+  if(diffJam < 24) return `${diffJam} jam lalu`;
+  return `${Math.round(diffJam/24)} hari lalu`;
+}
+// Perbarui keterangan "x menit lalu" secara berkala tanpa perlu menyegarkan data sungguhan.
+setInterval(()=>{
+  if(lastSyncDate && syncStatusEl.classList.contains('online')){
+    syncStatusEl.textContent = `🟢 Tersambung ke Google Sheets — data terbaru pukul ${lastSyncDate.toLocaleTimeString('id-ID')} (${relativeTimeId(lastSyncDate)})`;
+  }
+}, 30000);
 
 function rebuildFilterOptions(){
   const kecSls = uniqueSorted(SLS_DATA.map(d=>d.nmkec));
@@ -1565,7 +1689,7 @@ async function syncFromSheets(silent){
     }));
     rebuildFilterOptions();
     renderStats(); renderSls(); renderDesa(); renderPeta();
-    setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')}`);
+    setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')} (baru saja)`);
   } catch(err){
     console.error(err);
     setSyncStatus('error', '🔴 Gagal menyinkronkan. Periksa URL Apps Script / izin akses, lalu coba lagi.');
@@ -1753,6 +1877,14 @@ document.getElementById('riwayatExportBtn').addEventListener('click', ()=>{
     r.nama_item, r.kecamatan, r.ringkasan, r.diperbarui_oleh, r.peran
   ]);
   downloadCsv('riwayat_perubahan.csv', headers, rows);
+});
+document.getElementById('riwayatPrintBtn').addEventListener('click', ()=>{
+  const prevShown = riwayatShown;
+  riwayatShown = riwayatCurrentFiltered.length || RIWAYAT_PAGE; // tampilkan semua baris hasil filter dulu sebelum dicetak
+  applyRiwayatFilters(true);
+  printPanel('panel-riwayat');
+  riwayatShown = prevShown;
+  applyRiwayatFilters(true);
 });
 
 /* ---------- MODAL PEMILIH TITIK DI PETA (untuk update koordinat) ---------- */
