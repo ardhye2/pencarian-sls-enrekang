@@ -217,6 +217,14 @@
   .bar-fill{background:linear-gradient(90deg, var(--moss) 0%, var(--bar) 100%);height:100%;border-radius:8px;transition:width 0.4s ease;}
   #chartSls .bar-fill{background:linear-gradient(90deg, var(--clay) 0%, #f2a94a 100%);}
   .bar-val{width:34px;flex:0 0 34px;color:var(--ink);font-weight:700;}
+  .bar-group{margin-bottom:11px;}
+  .bar-group:last-child{margin-bottom:0;}
+  .bar-group-label{font-size:12.5px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+  .bar-subrow{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:3px;}
+  .bar-subrow:last-child{margin-bottom:0;}
+  .bar-tag{width:52px;flex:0 0 52px;text-align:right;color:var(--muted);}
+  .bar-subrow .bar-track{height:12px;}
+  .bar-subrow .bar-val{width:26px;flex:0 0 26px;font-size:11px;}
 
   .map-box{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(19,36,55,0.05);}
   .map-legend{position:absolute;left:10px;bottom:10px;z-index:5;background:var(--card-bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-family:Arial,sans-serif;font-size:11.5px;color:var(--ink);box-shadow:0 2px 8px rgba(19,36,55,0.2);line-height:1.9;}
@@ -468,6 +476,15 @@
         <div class="chart-title"><span class="chart-dot" style="background:var(--clay);"></span>Jumlah SLS (Dusun) per Kecamatan<button class="chart-png-btn" id="chartSlsPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button></div>
         <div id="chartSls"></div>
       </div>
+    </div>
+    <div class="chart-box" style="margin-bottom:14px;">
+      <div class="chart-title">
+        <span class="chart-dot" style="background:var(--moss);"></span>Desa
+        <span class="chart-dot" style="background:var(--clay);margin-left:10px;"></span>Kelurahan
+        <span style="font-weight:400;color:var(--muted);">— menurut Kecamatan</span>
+        <button class="chart-png-btn" id="chartDesaKelPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button>
+      </div>
+      <div id="chartDesaKel"></div>
     </div>
     <div class="count-line">
       <span>Rekap seluruh kecamatan di Kabupaten Enrekang</span>
@@ -1436,6 +1453,19 @@ petaShowDesa.addEventListener('change', renderPeta);
 
 /* ---------- PANEL 3: REKAP KECAMATAN ---------- */
 const rekapSort = {key:null, dir:'desc'};
+/* Rincian jumlah Desa murni vs Kelurahan per kecamatan (KEC_AGG.jml_desa adalah gabungan keduanya). */
+function computeDesaKelPerKec(){
+  const out = KEC_AGG.map(k=>{
+    const rows = DESA_DATA.filter(r=>r.nmkec===k.nmkec);
+    return {
+      nmkec: k.nmkec,
+      desa: rows.filter(r=>r.status_pem==='DESA').length,
+      kel: rows.filter(r=>r.status_pem!=='DESA').length
+    };
+  });
+  return out.sort((a,b)=>(b.desa+b.kel)-(a.desa+a.kel));
+}
+
 function renderRekap(){
   const maxDesa = Math.max(...KEC_AGG.map(k=>k.jml_desa));
   const maxSls = Math.max(...KEC_AGG.map(k=>k.jml_sls));
@@ -1454,6 +1484,23 @@ function renderRekap(){
       <div class="bar-label">${k.nmkec}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${(k.jml_sls/maxSls*100).toFixed(1)}%"></div></div>
       <div class="bar-val">${k.jml_sls}</div>
+    </div>`).join('');
+
+  const desaKelData = computeDesaKelPerKec();
+  const maxDesaKel = Math.max(...desaKelData.map(k=>Math.max(k.desa,k.kel)), 1);
+  document.getElementById('chartDesaKel').innerHTML = desaKelData.map(k=>`
+    <div class="bar-group">
+      <div class="bar-group-label">${k.nmkec}</div>
+      <div class="bar-subrow">
+        <span class="bar-tag">Desa</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(k.desa/maxDesaKel*100).toFixed(1)}%"></div></div>
+        <span class="bar-val">${k.desa}</span>
+      </div>
+      <div class="bar-subrow">
+        <span class="bar-tag">Kel.</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(k.kel/maxDesaKel*100).toFixed(1)}%;background:linear-gradient(90deg, var(--clay) 0%, #f2a94a 100%);"></div></div>
+        <span class="bar-val">${k.kel}</span>
+      </div>
     </div>`).join('');
 
   let tableData = [...KEC_AGG];
@@ -1523,6 +1570,52 @@ document.getElementById('chartDesaPngBtn').addEventListener('click', ()=>{
 });
 document.getElementById('chartSlsPngBtn').addEventListener('click', ()=>{
   downloadBarChartPng(KEC_AGG, 'nmkec', 'jml_sls', '#e08b1d', 'Jumlah SLS (Dusun) per Kecamatan', 'rekap_sls_per_kecamatan.png');
+});
+
+/* Unduh grafik "Desa vs Kelurahan per Kecamatan" sebagai PNG — dua batang berdampingan per kecamatan. */
+function downloadDesaKelPng(data, filename){
+  const rowH = 44, padTop = 70, padLeft = 150, padRight = 56, chartW = 560;
+  const canvas = document.createElement('canvas');
+  canvas.width = padLeft + chartW + padRight;
+  canvas.height = padTop + data.length*rowH + 20;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0d6ea8';
+  ctx.font = 'bold 17px Arial';
+  ctx.textAlign = 'left';
+  ctx.fillText('Desa dan Kelurahan menurut Kecamatan', 20, 30);
+  ctx.fillStyle = '#6b7786';
+  ctx.font = '11px Arial';
+  ctx.fillText('Badan Pusat Statistik Kabupaten Enrekang · ' + new Date().toLocaleDateString('id-ID'), 20, 48);
+  ctx.fillStyle = '#2ea8e0'; ctx.fillRect(20, 56, 10, 10);
+  ctx.fillStyle = '#132437'; ctx.font = '11px Arial'; ctx.fillText('Desa', 34, 65);
+  ctx.fillStyle = '#e08b1d'; ctx.fillRect(80, 56, 10, 10);
+  ctx.fillStyle = '#132437'; ctx.fillText('Kelurahan', 94, 65);
+  const max = Math.max(...data.map(d=>Math.max(d.desa, d.kel)), 1);
+  data.forEach((d,i)=>{
+    const y = padTop + i*rowH;
+    ctx.fillStyle = '#132437';
+    ctx.font = 'bold 11.5px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(d.nmkec, padLeft - 10, y + 13);
+    const wD = Math.max(2, (d.desa/max) * chartW);
+    ctx.fillStyle = '#2ea8e0';
+    ctx.fillRect(padLeft, y + 2, wD, 13);
+    ctx.fillStyle = '#132437'; ctx.font = '11px Arial'; ctx.textAlign = 'left';
+    ctx.fillText(String(d.desa), padLeft + wD + 6, y + 12);
+    const wK = Math.max(2, (d.kel/max) * chartW);
+    ctx.fillStyle = '#e08b1d';
+    ctx.fillRect(padLeft, y + 19, wK, 13);
+    ctx.fillStyle = '#132437'; ctx.fillText(String(d.kel), padLeft + wK + 6, y + 29);
+  });
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+document.getElementById('chartDesaKelPngBtn').addEventListener('click', ()=>{
+  downloadDesaKelPng(computeDesaKelPerKec(), 'desa_vs_kelurahan_per_kecamatan.png');
 });
 
 /* ---------- ROLE / LOGIN ---------- */
