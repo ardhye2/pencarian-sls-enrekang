@@ -139,6 +139,7 @@
 
   .tabs{display:flex;gap:4px;margin-bottom:14px;font-family:'Inter',sans-serif;border-bottom:2px solid var(--line);overflow-x:auto;}
   .tab-btn{padding:10px 18px;background:transparent;border:none;border-radius:8px 8px 0 0;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;font-size:13.5px;color:var(--muted);font-weight:600;transition:color 0.15s, background 0.15s;white-space:nowrap;}
+  .tab-badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:10px;background:#fbe3c0;color:#9a5a0c;font-size:11px;font-weight:700;vertical-align:1px;}
   .tab-btn:hover{color:var(--moss-dark);background:var(--row-hover);}
   .tab-btn.active{color:var(--moss-dark);background:var(--row-hover);border-bottom-color:var(--moss);}
   .panel{display:none;}
@@ -212,6 +213,11 @@
   .bar-val{width:34px;flex:0 0 34px;color:var(--ink);font-weight:700;}
 
   .map-box{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:14px;box-shadow:0 2px 8px rgba(19,36,55,0.05);}
+  .map-legend{position:absolute;left:10px;bottom:10px;z-index:5;background:var(--card-bg);border:1px solid var(--line);border-radius:8px;padding:8px 11px;font-family:Arial,sans-serif;font-size:11.5px;color:var(--ink);box-shadow:0 2px 8px rgba(19,36,55,0.2);line-height:1.9;}
+  .map-legend-item{display:flex;align-items:center;gap:7px;white-space:nowrap;}
+  .map-legend-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.15);}
+  .map-legend-cluster{width:16px;height:16px;border-radius:50%;background:#2ea8e0;color:#fff;font-size:8px;font-weight:700;display:flex;align-items:center;justify-content:center;border:none;box-shadow:none;}
+  @media (max-width:640px){ .map-legend{font-size:10.5px;padding:6px 9px;line-height:1.7;} }
   .map-box .map-title{background:var(--card-bg);padding:8px 14px;font-family:Arial,sans-serif;font-size:12.5px;font-weight:700;color:var(--moss-dark);border-bottom:1px solid var(--line);}
   .row-focusable{cursor:pointer;}
   .row-focusable:hover td{background:rgba(15,127,184,0.07);}
@@ -252,6 +258,9 @@
     .footer-left{flex-direction:column;text-align:center;}
     .footer-right{text-align:center;}
   }
+  @keyframes shimmer{0%{background-position:-200px 0;}100%{background-position:calc(200px + 100%) 0;}}
+  .skeleton-row td{padding:10px 8px;}
+  .skeleton-bar{height:12px;border-radius:4px;background:linear-gradient(90deg, var(--track-bg) 25%, var(--line) 50%, var(--track-bg) 75%);background-size:200px 100%;animation:shimmer 1.3s infinite linear;}
   .leaflet-map{height:380px;width:100%;}
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
@@ -305,8 +314,8 @@
   <div class="stats-row" id="statsRow"></div>
 
   <div class="tabs">
-    <div class="tab-btn active" data-tab="sls">Cari Dusun / SLS</div>
-    <div class="tab-btn" data-tab="desa">Cari Koordinat per Desa</div>
+    <div class="tab-btn active" data-tab="sls">Cari Dusun / SLS<span class="tab-badge" id="tabBadgeSls" style="display:none;"></span></div>
+    <div class="tab-btn" data-tab="desa">Cari Koordinat per Desa<span class="tab-badge" id="tabBadgeDesa" style="display:none;"></span></div>
     <div class="tab-btn" data-tab="peta">Peta Sebaran</div>
     <div class="tab-btn" data-tab="rekap">Rekap per Kecamatan</div>
     <div class="tab-btn" data-tab="wilayah">Peta Wilayah Lengkap</div>
@@ -761,7 +770,10 @@ function wireSort(tableId, state, rerenderFn){
 
 /* ---------- PETA (MapLibre GL + OpenFreeMap, gaya mirip Google Maps) ---------- */
 let mapSls=null, markersSls=[], mapDesa=null, markersDesa=[];
-let mapPeta=null, markersPetaSls=[], markersPetaDesa=[];
+let mapPeta=null;
+let petaSlsGeoJSON = {type:'FeatureCollection', features:[]};
+let petaDesaGeoJSON = {type:'FeatureCollection', features:[]};
+let petaLayersWired = false;
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
 // Style satelit (raster, gratis, tanpa API key) untuk dipakai saat mode "Satelit" diaktifkan.
 const SATELLITE_STYLE = {
@@ -952,6 +964,81 @@ function initMaps(){
   mapSls = createMap('slsMap', false);
   mapDesa = createMap('desaMap', false);
   mapPeta = createMap('petaMap', true);
+  mapPeta.on('load', ensurePetaLayers);
+  mapPeta.on('style.load', ensurePetaLayers);
+  addPetaLegend('petaMap');
+}
+
+/* Pasang sumber data + layer cluster untuk Peta Sebaran (dipanggil ulang tiap style peta berganti,
+   mis. saat toggle Default/Satelit, karena setStyle() membuang semua source/layer kustom). */
+function ensurePetaLayers(){
+  if(!mapPeta.isStyleLoaded()) return;
+  if(!mapPeta.getSource('peta-sls')){
+    mapPeta.addSource('peta-sls', {type:'geojson', data:petaSlsGeoJSON, cluster:true, clusterRadius:45, clusterMaxZoom:13});
+    mapPeta.addLayer({ id:'peta-sls-clusters', type:'circle', source:'peta-sls', filter:['has','point_count'],
+      paint:{ 'circle-color':'#2ea8e0', 'circle-radius':['step',['get','point_count'],14,10,18,30,24,100,30],
+        'circle-opacity':0.82, 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+    mapPeta.addLayer({ id:'peta-sls-cluster-count', type:'symbol', source:'peta-sls', filter:['has','point_count'],
+      layout:{ 'text-field':['get','point_count_abbreviated'], 'text-font':['Noto Sans Bold'], 'text-size':11 },
+      paint:{ 'text-color':'#ffffff' } });
+    mapPeta.addLayer({ id:'peta-sls-point', type:'circle', source:'peta-sls', filter:['!',['has','point_count']],
+      paint:{ 'circle-color':'#2ea8e0', 'circle-radius':6, 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+  } else {
+    mapPeta.getSource('peta-sls').setData(petaSlsGeoJSON);
+  }
+  if(!mapPeta.getSource('peta-desa')){
+    mapPeta.addSource('peta-desa', {type:'geojson', data:petaDesaGeoJSON, cluster:true, clusterRadius:45, clusterMaxZoom:13});
+    mapPeta.addLayer({ id:'peta-desa-clusters', type:'circle', source:'peta-desa', filter:['has','point_count'],
+      paint:{ 'circle-color':'#e08b1d', 'circle-radius':['step',['get','point_count'],15,10,19,30,25],
+        'circle-opacity':0.85, 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+    mapPeta.addLayer({ id:'peta-desa-cluster-count', type:'symbol', source:'peta-desa', filter:['has','point_count'],
+      layout:{ 'text-field':['get','point_count_abbreviated'], 'text-font':['Noto Sans Bold'], 'text-size':11 },
+      paint:{ 'text-color':'#ffffff' } });
+    mapPeta.addLayer({ id:'peta-desa-point', type:'circle', source:'peta-desa', filter:['!',['has','point_count']],
+      paint:{ 'circle-color':'#e08b1d', 'circle-radius':8, 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+  } else {
+    mapPeta.getSource('peta-desa').setData(petaDesaGeoJSON);
+  }
+  if(!petaLayersWired) wirePetaLayerEvents();
+}
+
+function wirePetaLayerEvents(){
+  petaLayersWired = true;
+  ['peta-sls-clusters','peta-desa-clusters'].forEach(layerId=>{
+    const srcId = layerId.replace('-clusters','');
+    mapPeta.on('click', layerId, (e)=>{
+      const feature = e.features[0];
+      const clusterId = feature.properties.cluster_id;
+      mapPeta.getSource(srcId).getClusterExpansionZoom(clusterId, (err, zoom)=>{
+        if(err) return;
+        mapPeta.easeTo({ center: feature.geometry.coordinates, zoom });
+      });
+    });
+    mapPeta.on('mouseenter', layerId, ()=>{ mapPeta.getCanvas().style.cursor = 'pointer'; });
+    mapPeta.on('mouseleave', layerId, ()=>{ mapPeta.getCanvas().style.cursor = ''; });
+  });
+  ['peta-sls-point','peta-desa-point'].forEach(layerId=>{
+    mapPeta.on('click', layerId, (e)=>{
+      const f = e.features[0];
+      const [lng, lat] = f.geometry.coordinates;
+      const html = `<b>${f.properties.label}</b><br>${f.properties.sub||''}<br><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Buka di Google Maps</a>`;
+      new maplibregl.Popup({offset:10}).setLngLat([lng,lat]).setHTML(html).addTo(mapPeta);
+    });
+    mapPeta.on('mouseenter', layerId, ()=>{ mapPeta.getCanvas().style.cursor = 'pointer'; });
+    mapPeta.on('mouseleave', layerId, ()=>{ mapPeta.getCanvas().style.cursor = ''; });
+  });
+}
+
+/* Legenda warna + keterangan klaster, dipasang di pojok kiri bawah Peta Sebaran. */
+function addPetaLegend(containerId){
+  const el = document.createElement('div');
+  el.className = 'map-legend';
+  el.innerHTML = `
+    <div class="map-legend-item"><span class="map-legend-dot" style="background:#2ea8e0;"></span>Dusun/SLS</div>
+    <div class="map-legend-item"><span class="map-legend-dot" style="background:#e08b1d;"></span>Desa/Kelurahan</div>
+    <div class="map-legend-item"><span class="map-legend-dot map-legend-cluster">12</span>Klaster titik — klik untuk perbesar</div>
+  `;
+  document.getElementById(containerId).appendChild(el);
 }
 
 function clearMarkers(arr){
@@ -1047,6 +1134,26 @@ function renderSlsBreadcrumb(){
   slsBreadcrumb.innerHTML = 'Lingkup pencarian: ' + parts.join(' &rarr; ');
 }
 
+function skeletonRows(nCols, nRows){
+  nRows = nRows || 6;
+  let out = '';
+  for(let r=0;r<nRows;r++){
+    out += '<tr class="skeleton-row">';
+    for(let c=0;c<nCols;c++){ out += `<td><div class="skeleton-bar" style="width:${55+((r*7+c*13)%40)}%;"></div></td>`; }
+    out += '</tr>';
+  }
+  return out;
+}
+
+function updateTabBadges(){
+  const nSls = SLS_DATA.filter(r=>(r.status_verifikasi||'').toUpperCase()==='BELUM DIVERIFIKASI').length;
+  const nDesa = DESA_DATA.filter(r=>(r.status_verifikasi||'').toUpperCase()==='BELUM DIVERIFIKASI').length;
+  const bSls = document.getElementById('tabBadgeSls');
+  const bDesa = document.getElementById('tabBadgeDesa');
+  if(bSls){ bSls.textContent = '⏳ '+nSls; bSls.style.display = nSls>0 ? 'inline-block' : 'none'; }
+  if(bDesa){ bDesa.textContent = '⏳ '+nDesa; bDesa.style.display = nDesa>0 ? 'inline-block' : 'none'; }
+}
+
 function renderSls(){
   const q = slsSearch.value.trim().toLowerCase();
   const kec = slsKecFilter.value;
@@ -1090,6 +1197,7 @@ function renderSls(){
   slsCount.innerHTML = `Menampilkan <b>${Math.min(filtered.length,500)}</b> dari <b>${filtered.length}</b> hasil (total data: <b>${SLS_DATA.length}</b>)${filtered.length>500?' — persempit pencarian untuk melihat semua':''}.`;
 
   updateMap(markersSls, mapSls, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmsls,sub:`${r.nmdesa}, ${r.nmkec}`})), 500);
+  updateTabBadges();
 }
 slsSearch.addEventListener('input', renderSls);
 slsKecFilter.addEventListener('change', ()=>{ refreshSlsDesaOptions(); renderSls(); });
@@ -1188,6 +1296,7 @@ function renderDesa(){
   desaCount.innerHTML = `Menampilkan <b>${filtered.length}</b> dari <b>${DESA_DATA.length}</b> desa/kelurahan.`;
 
   updateMap(markersDesa, mapDesa, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmdesa,sub:r.nmkec})), 500);
+  updateTabBadges();
 }
 desaSearch.addEventListener('input', renderDesa);
 desaKecFilter.addEventListener('change', renderDesa);
@@ -1227,29 +1336,36 @@ uniqueSorted([...SLS_DATA.map(d=>d.nmkec), ...DESA_DATA.map(d=>d.nmkec)]).forEac
 
 function renderPeta(){
   const kec = petaKecFilter.value;
-  clearMarkers(markersPetaSls);
-  clearMarkers(markersPetaDesa);
   const allPts = [];
   let nSls = 0, nDesa = 0;
 
+  const slsFeatures = [];
   if(petaShowSls.checked){
     SLS_DATA.filter(r=>!kec || r.nmkec===kec).forEach(r=>{
       if(r.lat==null || r.lng==null || isNaN(r.lat) || isNaN(r.lng)) return;
-      addMarker(mapPeta, markersPetaSls, r.lat, r.lng, '#29a3e0', 10, r.nmsls+' (Dusun/SLS)', `${r.nmdesa}, ${r.nmkec}`);
+      slsFeatures.push({ type:'Feature', geometry:{type:'Point', coordinates:[r.lng, r.lat]},
+        properties:{ label: r.nmsls+' (Dusun/SLS)', sub: `${r.nmdesa}, ${r.nmkec}` } });
       allPts.push({lat:r.lat,lng:r.lng});
       nSls++;
     });
   }
+  petaSlsGeoJSON = { type:'FeatureCollection', features: slsFeatures };
+
+  const desaFeatures = [];
   if(petaShowDesa.checked){
     DESA_DATA.filter(r=>!kec || r.nmkec===kec).forEach(r=>{
       if(r.lat==null || r.lng==null || isNaN(r.lat) || isNaN(r.lng)) return;
-      addMarker(mapPeta, markersPetaDesa, r.lat, r.lng, '#e08b1d', 16, r.nmdesa+` (${r.status_pem})`, r.nmkec);
+      desaFeatures.push({ type:'Feature', geometry:{type:'Point', coordinates:[r.lng, r.lat]},
+        properties:{ label: r.nmdesa+` (${r.status_pem})`, sub: r.nmkec } });
       allPts.push({lat:r.lat,lng:r.lng});
       nDesa++;
     });
   }
+  petaDesaGeoJSON = { type:'FeatureCollection', features: desaFeatures };
+
+  ensurePetaLayers();
   fitToPoints(mapPeta, allPts);
-  petaCount.innerHTML = `Menampilkan <b>${nSls}</b> titik Dusun/SLS dan <b>${nDesa}</b> titik Desa/Kelurahan${kec?` di Kecamatan <b>${kec}</b>`:''}.`;
+  petaCount.innerHTML = `Menampilkan <b>${nSls}</b> titik Dusun/SLS dan <b>${nDesa}</b> titik Desa/Kelurahan${kec?` di Kecamatan <b>${kec}</b>`:''} &mdash; titik yang berdekatan dikelompokkan jadi klaster, klik untuk perbesar.`;
 }
 petaKecFilter.addEventListener('change', renderPeta);
 petaShowSls.addEventListener('change', renderPeta);
@@ -1602,6 +1718,7 @@ async function loadRiwayat(){
     riwayatCount.textContent = 'Mode offline.';
     return;
   }
+  riwayatBody.innerHTML = skeletonRows(9, 8);
   riwayatCount.textContent = 'Memuat riwayat...';
   try {
     const rows = await postApi({ action:'get_riwayat', token: authToken });
@@ -1829,6 +1946,8 @@ refreshBtn.addEventListener('click', ()=>{
     alert('Belum tersambung ke Google Sheets. Data yang tampil adalah data bawaan file (mode offline).');
     return;
   }
+  slsBody.innerHTML = skeletonRows(10, 6);
+  desaBody.innerHTML = skeletonRows(13, 6);
   syncFromSheets(false);
 });
 
