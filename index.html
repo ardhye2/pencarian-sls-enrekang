@@ -1310,7 +1310,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button> <button class="action-btn" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmsls||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
+        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button> <button class="action-btn staff-only" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmsls||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -1438,7 +1438,7 @@ function renderDesa(){
         <td>${row.jml_sls}</td>
         <td>${row.jml_nonsls}</td>
         <td>${row.jml_bs}</td>
-        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button> <button class="action-btn" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmdesa||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
+        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button> <button class="action-btn staff-only" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmdesa||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openDesaEdit(${row.iddesa})">Edit</button>
           <button class="action-btn del" onclick="deleteDesa(${row.iddesa})">Hapus</button>
