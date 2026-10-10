@@ -97,9 +97,14 @@
   .badge{font-family:'Inter',sans-serif;font-size:12px;font-weight:700;background:linear-gradient(135deg, var(--moss) 0%, var(--moss-dark) 100%);color:#fff;padding:6px 13px;border-radius:20px;white-space:nowrap;box-shadow:0 2px 6px rgba(13,110,168,0.25);}
 
   .sync-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:Arial,sans-serif;font-size:11.5px;margin-bottom:14px;padding:6px 2px;}
-  .sync-status.offline{color:var(--muted);}
-  .sync-status.online{color:var(--moss-dark);font-weight:700;}
-  .sync-status.error{color:#b0402a;font-weight:700;}
+  .sync-status{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;border:1px solid transparent;}
+  .sync-status.offline{color:var(--muted);background:var(--row-even);border-color:var(--border-soft);}
+  .sync-status.online{color:#157a3f;font-weight:700;background:rgba(63,145,66,0.12);border-color:rgba(63,145,66,0.3);}
+  .sync-status.error{color:#b0402a;font-weight:700;background:rgba(176,64,42,0.12);border-color:rgba(176,64,42,0.3);}
+  .sync-status.device-offline{color:#b0402a;font-weight:700;background:rgba(176,64,42,0.14);border-color:rgba(176,64,42,0.35);animation:pulseOffline 2s infinite;}
+  @keyframes pulseOffline{0%,100%{opacity:1;}50%{opacity:.6;}}
+  #deviceOfflineBanner{display:none;position:sticky;top:0;z-index:500;background:#b0402a;color:#fff;text-align:center;font-weight:700;font-size:.85rem;padding:7px 10px;letter-spacing:.2px;}
+  body.device-offline #deviceOfflineBanner{display:block;}
 
   .role-box{display:flex;align-items:center;gap:6px;font-family:Arial,sans-serif;font-size:12px;}
   .role-box select{padding:6px 8px;border-radius:3px;border:1px solid var(--line);font-family:Arial,sans-serif;font-size:12px;}
@@ -147,8 +152,10 @@
 
   .search-panel{background:var(--card-bg);border:1px solid var(--line);border-top:3px solid var(--moss);border-radius:10px;padding:16px 18px;margin-bottom:14px;box-shadow:0 2px 8px rgba(19,36,55,0.04);}
   .search-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-  .search-box{flex:1 1 320px;}
-  .search-box input{width:100%;padding:11px 14px;font-family:Arial,sans-serif;font-size:15px;border:2px solid var(--moss-dark);border-radius:8px;background:var(--highlight);color:var(--ink);transition:border-color 0.15s, box-shadow 0.15s;}
+  .search-box{flex:1 1 320px;position:relative;}
+  .search-kbd-hint{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:.72rem;font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--muted);background:var(--card-bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;pointer-events:none;opacity:.75;}
+  @media (max-width:640px){ .search-kbd-hint{display:none;} }
+  .search-box input{width:100%;padding:11px 36px 11px 14px;font-family:Arial,sans-serif;font-size:15px;border:2px solid var(--moss-dark);border-radius:8px;background:var(--highlight);color:var(--ink);transition:border-color 0.15s, box-shadow 0.15s;}
   .search-box input:focus{box-shadow:0 0 0 3px rgba(46,168,224,0.2);}
   .search-box input::placeholder{color:#8a97a6;}
   .search-box input:focus{outline:none;border-color:var(--clay);}
@@ -188,6 +195,7 @@
   .no{color:var(--muted);text-align:right;}
   mark{background:var(--highlight);color:var(--ink);padding:0 1px;border-radius:2px;}
   .geo-link{color:var(--moss-dark);text-decoration:none;font-weight:600;border-bottom:1px dotted var(--moss-dark);}
+  .coord-anomaly-badge{display:inline-block;font-size:.72rem;font-weight:700;color:#b0402a;background:rgba(176,64,42,0.12);border:1px solid rgba(176,64,42,0.35);border-radius:10px;padding:1px 7px;margin-left:4px;white-space:nowrap;cursor:help;}
   .geo-link:hover{color:var(--clay);border-color:var(--clay);}
   .empty-row td{text-align:center;padding:30px 10px;font-family:'Inter',sans-serif;color:var(--muted);}
   .empty-state{display:flex;flex-direction:column;align-items:center;gap:3px;}
@@ -201,6 +209,7 @@
   .action-btn.verify{color:#2e7d32;border-color:#2e7d32;}
   .col-code{}
   .ringkas .col-code{display:none;}
+  .ringkas .col-coord-text{display:none;}
 
   .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
   @media (max-width:760px){ .chart-grid{grid-template-columns:1fr;} }
@@ -291,6 +300,7 @@
 </style>
 </head>
 <body>
+<div id="deviceOfflineBanner">📵 Tidak ada koneksi internet — data yang ditampilkan adalah data tersimpan terakhir di perangkat ini</div>
 <div class="wrap">
 
   <header>
@@ -342,12 +352,13 @@
       <div class="search-row">
         <div class="search-box">
           <input type="text" id="slsSearch" placeholder="Cari nama dusun/SLS, desa, kecamatan, atau kode..." autocomplete="off">
+          <span class="search-kbd-hint" title="Tekan tombol / untuk langsung fokus ke kolom pencarian ini">/</span>
         </div>
       </div>
       <div class="filters">
         <select id="slsKecFilter"><option value="">Semua Kecamatan</option></select>
         <select id="slsDesaFilter"><option value="">Semua Desa/Kelurahan</option></select>
-        <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
+        <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode &amp; koordinat)</label>
         <label class="toggle-label"><input type="checkbox" id="slsOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
         <button class="btn outline" id="slsResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
@@ -397,12 +408,13 @@
       <div class="search-row">
         <div class="search-box">
           <input type="text" id="desaSearch" placeholder="Cari nama desa/kelurahan atau kecamatan..." autocomplete="off">
+          <span class="search-kbd-hint" title="Tekan tombol / untuk langsung fokus ke kolom pencarian ini">/</span>
         </div>
       </div>
       <div class="filters">
         <select id="desaKecFilter"><option value="">Semua Kecamatan</option></select>
         <select id="desaStatusFilter"><option value="">Desa &amp; Kelurahan</option><option value="DESA">Desa</option><option value="KELURAHAN">Kelurahan</option></select>
-        <label class="toggle-label"><input type="checkbox" id="desaRingkas"> Mode ringkas (sembunyikan kolom kode)</label>
+        <label class="toggle-label"><input type="checkbox" id="desaRingkas"> Mode ringkas (sembunyikan kolom kode &amp; koordinat)</label>
         <label class="toggle-label"><input type="checkbox" id="desaOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
         <button class="btn outline" id="desaResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
@@ -477,14 +489,25 @@
         <div id="chartSls"></div>
       </div>
     </div>
-    <div class="chart-box" style="margin-bottom:14px;">
-      <div class="chart-title">
-        <span class="chart-dot" style="background:var(--moss);"></span>Desa
-        <span class="chart-dot" style="background:var(--clay);margin-left:10px;"></span>Kelurahan
-        <span style="font-weight:400;color:var(--muted);">— menurut Kecamatan</span>
-        <button class="chart-png-btn" id="chartDesaKelPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button>
+    <div class="chart-grid" style="align-items:start;">
+      <div class="chart-box" style="margin-bottom:14px;">
+        <div class="chart-title">
+          <span class="chart-dot" style="background:var(--moss);"></span>Desa
+          <span class="chart-dot" style="background:var(--clay);margin-left:10px;"></span>Kelurahan
+          <span style="font-weight:400;color:var(--muted);">— menurut Kecamatan</span>
+          <button class="chart-png-btn" id="chartDesaKelPngBtn" title="Unduh grafik ini sebagai gambar PNG">⬇ PNG</button>
+        </div>
+        <div id="chartDesaKel"></div>
       </div>
-      <div id="chartDesaKel"></div>
+      <div class="chart-box" style="margin-bottom:14px;">
+        <div class="chart-title"><span class="chart-dot" style="background:var(--moss);"></span>Mode Perbandingan Kecamatan</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 14px;">
+          <select id="compareKecA" style="flex:1 1 180px;"></select>
+          <span style="color:var(--muted);font-weight:700;">VS</span>
+          <select id="compareKecB" style="flex:1 1 180px;"></select>
+        </div>
+        <div id="compareKecResult"></div>
+      </div>
     </div>
     <div class="count-line">
       <span>Rekap seluruh kecamatan di Kabupaten Enrekang</span>
@@ -629,6 +652,14 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="itemHistoryModal" style="display:none;">
+  <div class="modal-box" style="max-width:640px;">
+    <h3>🕒 Riwayat Perubahan — <span id="itemHistoryName"></span></h3>
+    <div id="itemHistoryBody" style="max-height:420px;overflow-y:auto;margin:10px 0;"></div>
+    <div class="modal-actions"><button class="btn outline" id="itemHistoryClose">Tutup</button></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="editModal" style="display:none;">
   <div class="modal-box">
     <h3 id="modalTitle">Edit Data</h3>
@@ -680,7 +711,24 @@ function highlight(text, q){
   return s.slice(0,idx) + '<mark>' + s.slice(idx, idx+q.length) + '</mark>' + s.slice(idx+q.length);
 }
 function mapsLink(lat,lng){
-  return `<a class="geo-link" href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener">${lat}, ${lng}</a> <button class="action-btn copy-coord" type="button" title="Salin koordinat" onclick="copyCoord(this,${lat},${lng})">📋</button>`;
+  return `<a class="geo-link" href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener">${lat}, ${lng}</a> <button class="action-btn copy-coord" type="button" title="Salin koordinat" onclick="copyCoord(this,${lat},${lng})">📋</button>${coordAnomalyBadge(lat,lng)}`;
+}
+/* ---------- deteksi koordinat yang tampak keliru (di luar wilayah Kab. Enrekang) ---------- */
+// Perkiraan kotak batas Kab. Enrekang + sedikit ruang toleransi di tepi.
+const ENREKANG_BOUNDS = { latMin:-3.75, latMax:-3.05, lngMin:119.55, lngMax:120.20 };
+function isCoordAnomalous(lat,lng){
+  const la = Number(lat), lo = Number(lng);
+  if(!isFinite(la) || !isFinite(lo)) return true;
+  if(la===0 && lo===0) return true;
+  if(la < ENREKANG_BOUNDS.latMin || la > ENREKANG_BOUNDS.latMax) return true;
+  if(lo < ENREKANG_BOUNDS.lngMin || lo > ENREKANG_BOUNDS.lngMax) return true;
+  // kemungkinan lat/lng tertukar: jika nilai lat positif besar & lng negatif kecil, pola umum pertukaran
+  if(la > 0 && lo < 0) return true;
+  return false;
+}
+function coordAnomalyBadge(lat,lng){
+  if(!isCoordAnomalous(lat,lng)) return '';
+  return ` <span class="coord-anomaly-badge" title="Koordinat ini berada di luar perkiraan wilayah Kab. Enrekang — kemungkinan salah input atau lat/lng tertukar">⚠ Cek Koordinat</span>`;
 }
 async function copyCoord(btn, lat, lng){
   const text = `${lat}, ${lng}`;
@@ -776,6 +824,32 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     }, 60);
     if(btn.dataset.tab==='riwayat') loadRiwayat();
   });
+});
+
+/* ---------- keyboard shortcut: "/" focuses the active tab's search box ---------- */
+document.addEventListener('keydown', (e)=>{
+  if(e.key !== '/') return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  const isTyping = tag==='INPUT' || tag==='TEXTAREA' || tag==='SELECT' || (document.activeElement && document.activeElement.isContentEditable);
+  if(isTyping) return;
+  const activeTab = document.querySelector('.tab-btn.active');
+  if(!activeTab) return;
+  const map = { sls:'slsSearch', desa:'desaSearch' };
+  const inputId = map[activeTab.dataset.tab];
+  if(!inputId) return;
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  e.preventDefault();
+  input.focus();
+  input.select();
+});
+document.querySelectorAll('.search-box input').forEach(inp=>{
+  const hint = inp.parentElement && inp.parentElement.querySelector('.search-kbd-hint');
+  if(!hint) return;
+  const sync = ()=>{ hint.style.display = (document.activeElement===inp || inp.value) ? 'none' : ''; };
+  inp.addEventListener('focus', sync);
+  inp.addEventListener('blur', sync);
+  inp.addEventListener('input', sync);
 });
 
 /* ---------- generic sortable header wiring ---------- */
@@ -1236,7 +1310,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
+        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button> <button class="action-btn" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmsls||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -1364,7 +1438,7 @@ function renderDesa(){
         <td>${row.jml_sls}</td>
         <td>${row.jml_nonsls}</td>
         <td>${row.jml_bs}</td>
-        <td>${mapsLink(row.lat,row.lng)} <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
+        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openDesaCoordEdit(${row.iddesa})">📍 Update</button> <button class="action-btn" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmdesa||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button>${verifBadge(row,'desa',row.iddesa,row.nmdesa)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openDesaEdit(${row.iddesa})">Edit</button>
           <button class="action-btn del" onclick="deleteDesa(${row.iddesa})">Hapus</button>
@@ -1520,6 +1594,63 @@ function renderRekap(){
 }
 renderRekap();
 wireSort('rekapTable', rekapSort, renderRekap);
+
+/* ---------- mode perbandingan kecamatan ---------- */
+const compareKecA = document.getElementById('compareKecA');
+const compareKecB = document.getElementById('compareKecB');
+const compareKecResult = document.getElementById('compareKecResult');
+function compareBarRow(label, valA, valB, colorA, colorB){
+  const max = Math.max(valA, valB, 1);
+  return `
+    <div class="bar-group">
+      <div class="bar-group-label">${label}</div>
+      <div class="bar-subrow">
+        <span class="bar-tag">A</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(valA/max*100).toFixed(1)}%;background:${colorA};"></div></div>
+        <span class="bar-val">${valA}</span>
+      </div>
+      <div class="bar-subrow">
+        <span class="bar-tag">B</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(valB/max*100).toFixed(1)}%;background:${colorB};"></div></div>
+        <span class="bar-val">${valB}</span>
+      </div>
+    </div>`;
+}
+function renderKecCompare(){
+  const nameA = compareKecA.value, nameB = compareKecB.value;
+  if(!nameA || !nameB){
+    compareKecResult.innerHTML = `<div class="empty-state" style="padding:16px 10px;"><div class="empty-state-icon">⚖️</div><div class="empty-state-sub">Pilih dua kecamatan di atas untuk membandingkan jumlah desa, SLS, dan sub-SLS.</div></div>`;
+    return;
+  }
+  const a = KEC_AGG.find(k=>k.nmkec===nameA);
+  const b = KEC_AGG.find(k=>k.nmkec===nameB);
+  if(!a || !b){ compareKecResult.innerHTML = ''; return; }
+  const diffDesa = a.jml_desa - b.jml_desa;
+  const diffSls = a.jml_sls - b.jml_sls;
+  const diffTxt = (label, diff)=> diff===0 ? `${label} sama persis.` : `<b>${diff>0?nameA:nameB}</b> unggul ${Math.abs(diff)} ${label} dibanding ${diff>0?nameB:nameA}.`;
+  compareKecResult.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px;color:var(--moss-dark);">
+      <span>🅰️ ${nameA}</span><span>🅱️ ${nameB}</span>
+    </div>
+    ${compareBarRow('Jumlah Desa/Kelurahan', a.jml_desa, b.jml_desa, 'var(--moss)', 'var(--clay)')}
+    ${compareBarRow('Jumlah SLS (Dusun)', a.jml_sls, b.jml_sls, 'var(--moss)', 'var(--clay)')}
+    ${compareBarRow('Jumlah Sub-SLS', a.jml_subsls, b.jml_subsls, 'var(--moss)', 'var(--clay)')}
+    <div style="margin-top:10px;font-size:13px;color:var(--muted);">
+      ${diffTxt('desa/kelurahan', diffDesa)}<br>${diffTxt('SLS', diffSls)}
+    </div>`;
+}
+function fillCompareOptions(){
+  const names = KEC_AGG.map(k=>k.nmkec);
+  const opts = '<option value="">— Pilih Kecamatan —</option>' + names.map(n=>`<option value="${n}">${n}</option>`).join('');
+  compareKecA.innerHTML = opts;
+  compareKecB.innerHTML = opts;
+  if(names[0]) compareKecA.value = names[0];
+  if(names[1]) compareKecB.value = names[1];
+  renderKecCompare();
+}
+compareKecA.addEventListener('change', renderKecCompare);
+compareKecB.addEventListener('change', renderKecCompare);
+fillCompareOptions();
 document.getElementById('rekapExportBtn').addEventListener('click', ()=>{
   const headers = ['Kecamatan','Jml Desa/Kel','Jml SLS','Jml SubSLS'];
   const rows = [...KEC_AGG].sort((a,b)=>b.jml_desa-a.jml_desa).map(k=>[k.nmkec,k.jml_desa,k.jml_sls,k.jml_subsls]);
@@ -1739,6 +1870,21 @@ setInterval(()=>{
   }
 }, 30000);
 
+/* ---------- indikator koneksi perangkat (benar-benar offline di lapangan) ---------- */
+function updateDeviceConnectivity(){
+  const isOffline = !navigator.onLine;
+  document.body.classList.toggle('device-offline', isOffline);
+  if(isOffline){
+    setSyncStatus('device-offline', '📵 Perangkat sedang offline — menampilkan data tersimpan terakhir');
+  } else if(syncStatusEl.classList.contains('device-offline')){
+    // koneksi baru saja kembali: coba sinkron ulang secara diam-diam
+    if(APPS_SCRIPT_URL) syncFromSheets(true); else setSyncStatus('offline','⚪ Mode offline (data bawaan file)');
+  }
+}
+window.addEventListener('online', updateDeviceConnectivity);
+window.addEventListener('offline', updateDeviceConnectivity);
+updateDeviceConnectivity();
+
 function rebuildFilterOptions(){
   const kecSls = uniqueSorted(SLS_DATA.map(d=>d.nmkec));
   slsKecFilter.innerHTML = '<option value="">Semua Kecamatan</option>' + kecSls.map(v=>`<option value="${v}">${v}</option>`).join('');
@@ -1914,7 +2060,7 @@ function applyRiwayatFilters(keepShown){
         <td>${new Date(r.waktu).toLocaleString('id-ID')}</td>
         <td>${r.sheet==='desa'?'Desa':'Dusun/SLS'}</td>
         <td><b>${r.aksi||'-'}</b></td>
-        <td>${r.nama_item||'-'}</td>
+        <td>${r.nama_item ? `<a href="#" class="geo-link" style="border-bottom-style:dotted;" onclick="event.preventDefault();openItemHistory('${r.nama_item.replace(/'/g,"\\'")}')" title="Lihat riwayat khusus item ini">${r.nama_item}</a>` : '-'}</td>
         <td>${r.kecamatan||'-'}</td>
         <td>${r.ringkasan||'-'}</td>
         <td>${r.diperbarui_oleh||'-'}</td>
@@ -1959,6 +2105,59 @@ async function loadRiwayat(){
     riwayatCount.textContent = 'Gagal memuat.';
   }
 }
+/* ---------- riwayat khusus satu item (dusun/SLS atau desa/kelurahan) ---------- */
+const itemHistoryModal = document.getElementById('itemHistoryModal');
+const itemHistoryName = document.getElementById('itemHistoryName');
+const itemHistoryBody = document.getElementById('itemHistoryBody');
+function renderItemHistoryList(name){
+  const rows = riwayatRawRows.filter(r=>r.nama_item===name).sort((a,b)=> new Date(b.waktu)-new Date(a.waktu));
+  if(rows.length===0){
+    itemHistoryBody.innerHTML = `<div class="empty-state" style="padding:20px 10px;">
+      <div class="empty-state-icon">🕒</div>
+      <div class="empty-state-title">Belum ada riwayat untuk "${name}"</div>
+      <div class="empty-state-sub">Perubahan pada item ini akan tercatat di sini.</div>
+    </div>`;
+    return;
+  }
+  itemHistoryBody.innerHTML = rows.map(r=>`
+    <div style="padding:10px 4px;border-bottom:1px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <b>${r.aksi||'-'}</b>
+        <span style="color:var(--muted);font-size:12.5px;">${new Date(r.waktu).toLocaleString('id-ID')}</span>
+      </div>
+      <div style="margin-top:3px;">${r.ringkasan||'-'}</div>
+      <div style="margin-top:3px;font-size:12.5px;color:var(--muted);">oleh ${r.diperbarui_oleh||'-'} (${(r.peran||'-').toUpperCase()})</div>
+    </div>`).join('');
+}
+async function openItemHistory(name){
+  itemHistoryName.textContent = name;
+  itemHistoryModal.style.display = 'flex';
+  if(!APPS_SCRIPT_URL){
+    itemHistoryBody.innerHTML = '<div class="empty-state" style="padding:20px 10px;"><div class="empty-state-icon">⚪</div><div class="empty-state-title">Mode offline</div><div class="empty-state-sub">Riwayat tidak tersedia tanpa koneksi ke Google Sheets.</div></div>';
+    return;
+  }
+  if(riwayatRawRows.length === 0){
+    itemHistoryBody.innerHTML = '<div class="empty-state" style="padding:20px 10px;"><div class="empty-state-icon">⏳</div><div class="empty-state-title">Memuat riwayat...</div></div>';
+    try{
+      const rows = await postApi({ action:'get_riwayat', token: authToken });
+      if(rows && rows.authError){
+        itemHistoryBody.innerHTML = '<div class="empty-state" style="padding:20px 10px;"><div class="empty-state-title">Sesi login berakhir</div><div class="empty-state-sub">Login ulang untuk melihat riwayat.</div></div>';
+        return;
+      }
+      riwayatRawRows = Array.isArray(rows) ? rows : [];
+      rebuildRiwayatFilterOptions();
+    } catch(err){
+      console.error(err);
+      itemHistoryBody.innerHTML = '<div class="empty-state" style="padding:20px 10px;"><div class="empty-state-title">Gagal memuat riwayat</div></div>';
+      return;
+    }
+  }
+  renderItemHistoryList(name);
+}
+document.getElementById('itemHistoryClose').addEventListener('click', ()=>{ itemHistoryModal.style.display='none'; });
+itemHistoryModal.addEventListener('click', (e)=>{ if(e.target===itemHistoryModal) itemHistoryModal.style.display='none'; });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && itemHistoryModal.style.display==='flex') itemHistoryModal.style.display='none'; });
+
 [riwayatSearch, riwayatPetugasFilter, riwayatAksiFilter, riwayatDariTgl, riwayatSampaiTgl].forEach(el=>{
   el.addEventListener('input', ()=>applyRiwayatFilters());
   el.addEventListener('change', ()=>applyRiwayatFilters());
