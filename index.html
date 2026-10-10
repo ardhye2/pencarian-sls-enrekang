@@ -327,6 +327,7 @@
       </div>
       <div class="badge">MFD 2025_2</div>
       <div class="role-box">
+        <button class="btn outline" id="homeBtn" style="padding:5px 9px;" title="Kembali ke tab Cari Dusun/SLS (tampilan awal)">🏠 Beranda</button>
         <button class="btn outline" id="helpBtn" style="padding:5px 9px;" title="Cara pakai aplikasi ini">❓ Bantuan</button>
         <button class="btn outline" id="darkModeToggle" style="padding:5px 9px;" title="Ganti mode gelap/terang">🌙</button>
         <span class="role-pill umum" id="rolePill">UMUM</span>
@@ -945,19 +946,42 @@ function renderStats(){
 renderStats();
 
 /* ---------- TABS ---------- */
+// Tab aktif dicerminkan di location.hash (#sls, #desa, #peta, dst.) supaya tombol Back
+// browser/HP bisa dipakai untuk kembali ke tab sebelumnya, bukan langsung keluar situs.
+function switchTabUI(tabName){
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if(!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+tabName).classList.add('active');
+  setTimeout(()=>{
+    if(tabName==='sls' && mapSls) mapSls.resize();
+    if(tabName==='desa' && mapDesa) mapDesa.resize();
+    if(tabName==='peta' && mapPeta) mapPeta.resize();
+  }, 60);
+  if(tabName==='riwayat') loadRiwayat();
+}
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
-    setTimeout(()=>{
-      if(btn.dataset.tab==='sls' && mapSls) mapSls.resize();
-      if(btn.dataset.tab==='desa' && mapDesa) mapDesa.resize();
-      if(btn.dataset.tab==='peta' && mapPeta) mapPeta.resize();
-    }, 60);
-    if(btn.dataset.tab==='riwayat') loadRiwayat();
+    if(location.hash === '#'+btn.dataset.tab){
+      switchTabUI(btn.dataset.tab); // hash sama -> hashchange tidak terpicu, panggil langsung
+    } else {
+      location.hash = btn.dataset.tab;
+    }
   });
+});
+window.addEventListener('hashchange', ()=>{
+  const t = location.hash.replace('#','');
+  if(t) switchTabUI(t);
+});
+document.getElementById('homeBtn').addEventListener('click', ()=>{
+  if(location.hash === '#sls' || !location.hash){
+    switchTabUI('sls');
+  } else {
+    location.hash = 'sls';
+  }
+  window.scrollTo({top:0, behavior:'smooth'});
 });
 
 /* ---------- keyboard shortcut: "/" focuses the active tab's search box ---------- */
@@ -2916,6 +2940,12 @@ function openDesaCoordEdit(id){
 
 /* ---------- INIT ---------- */
 initMaps();
+// Kalau halaman dibuka dengan hash tab tertentu (mis. tautan dibagikan dengan #rekap),
+// langsung tampilkan tab itu; kalau tidak ada, biarkan tab default (Cari Dusun/SLS) aktif.
+if(location.hash){
+  const initialTab = location.hash.replace('#','');
+  if(document.querySelector(`.tab-btn[data-tab="${initialTab}"]`)) switchTabUI(initialTab);
+}
 renderSls();
 renderDesa();
 renderPeta();
