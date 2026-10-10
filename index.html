@@ -788,6 +788,19 @@ function levenshtein(a, b){
   }
   return prev[n];
 }
+// Potong penomoran di akhir nama (angka romawi I-XX, angka biasa, atau satu huruf) supaya
+// "LINGKUNGAN PASARAN I" vs "LINGKUNGAN PASARAN II" tidak dianggap mirip/duplikat — itu
+// memang dua SLS berbeda yang sengaja diberi nomor urut, bukan typo.
+function stripTrailingEnumerator(normalized){
+  const parts = normalized.split(' ');
+  if(parts.length < 2) return normalized;
+  const last = parts[parts.length-1];
+  const isRoman = /^(i{1,3}|iv|vi{0,3}|ix|x|xi{1,3}|xiv|xvi{0,3}|xix|xx)$/.test(last);
+  const isNumber = /^\d+$/.test(last);
+  const isSingleLetter = /^[a-z]$/.test(last);
+  if(isRoman || isNumber || isSingleLetter) return parts.slice(0,-1).join(' ');
+  return normalized;
+}
 function findDuplicateNameFlags(data, nameKey, groupKey, keyFn){
   const groups = {};
   data.forEach(r=>{ const g = r[groupKey]||''; (groups[g] = groups[g]||[]).push(r); });
@@ -799,6 +812,8 @@ function findDuplicateNameFlags(data, nameKey, groupKey, keyFn){
         if(keyFn(ri)===keyFn(rj)) continue;
         const a = normName(ri[nameKey]), b = normName(rj[nameKey]);
         if(!a || !b) continue;
+        // Beda cuma di penomoran akhir (I/II/III, 1/2, A/B, dst.) -> bukan duplikat, lewati.
+        if(a !== b && stripTrailingEnumerator(a) === stripTrailingEnumerator(b)) continue;
         const maxLen = Math.max(a.length, b.length);
         if(maxLen < 4) continue;
         const dist = a===b ? 0 : levenshtein(a,b);
