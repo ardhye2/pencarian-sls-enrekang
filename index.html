@@ -819,9 +819,13 @@ function findDuplicateNameFlags(data, nameKey, groupKey, keyFn){
         // Beda cuma di penomoran akhir (I/II/III, 1/2, A/B, dst.) -> bukan duplikat, lewati.
         if(stripTrailingEnumerator(a) === stripTrailingEnumerator(b)) continue;
         const maxLen = Math.max(a.length, b.length);
-        if(maxLen < 4) continue;
+        // Nama pendek sangat mudah "mirip" secara kebetulan (CEMBA/TEMBAN/LEMBANG, dst. itu
+        // nama berbeda, bukan typo) — jadi hanya nama yang cukup panjang yang dibandingkan,
+        // dan hanya beda PERSIS 1 huruf/spasi yang ditandai (typo paling umum: kurang/lebih
+        // satu huruf, atau lupa spasi). Beda 2 huruf atau lebih dianggap nama lain, bukan typo.
+        if(maxLen < 6) continue;
         const dist = levenshtein(a,b);
-        if(dist >= 1 && dist <= 2 && dist < maxLen){
+        if(dist === 1){
           flagged.set(keyFn(ri), rj[nameKey]);
           flagged.set(keyFn(rj), ri[nameKey]);
         }
