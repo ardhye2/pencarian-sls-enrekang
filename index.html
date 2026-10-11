@@ -581,6 +581,18 @@
       <div id="riwayatTrendChart" style="padding:6px 2px 0;"></div>
     </div>
 
+    <div class="chart-box" id="kunjunganStatsBox" style="margin-bottom:14px;display:none;">
+      <div class="chart-title">
+        <span class="chart-dot" style="background:var(--clay);"></span>📊 Statistik Kunjungan Situs
+        <span style="font-weight:400;color:var(--muted);">— berdasarkan perangkat yang membuka halaman</span>
+      </div>
+      <div class="stats-row" id="kunjunganStatCards" style="margin:8px 0 10px;"></div>
+      <div id="kunjunganTrendChart" style="padding:6px 2px 0;"></div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+        Dihitung dari perangkat (browser) yang membuka situs, dicatat maksimal sekali per 30 menit per perangkat agar tidak dobel saat reload. Alamat IP pengunjung tidak dapat diambil oleh sistem ini (dibatasi Google), jadi yang dihitung adalah perangkat, bukan IP.
+      </div>
+    </div>
+
     <div class="search-panel">
       <p style="margin:0 0 10px;font-size:13px;color:var(--muted);">
         Catatan setiap kali data diubah — kapan, jenis aksi, ringkasan perubahan, dan siapa yang melakukannya.
@@ -2046,6 +2058,34 @@ try {
   if(saved && saved.token){ authToken = saved.token; currentUserName = saved.username; setRole(saved.role); }
 } catch(e){}
 
+/* ---------- catat kunjungan situs (untuk statistik admin/petugas) ---------- */
+function ensureDeviceId(){
+  const KEY = 'sls_enrekang_device_id';
+  try {
+    let id = localStorage.getItem(KEY);
+    if(!id){
+      id = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,10);
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch(e){ return 'dev-' + Math.random().toString(36).slice(2,10); }
+}
+const VISIT_LOG_INTERVAL_MS = 30*60*1000; // maksimal sekali per 30 menit per perangkat, supaya tidak dobel tiap reload
+function maybeLogVisit(){
+  if(!APPS_SCRIPT_URL) return;
+  try {
+    const LASTKEY = 'sls_enrekang_last_visit_log';
+    const now = Date.now();
+    const last = Number(localStorage.getItem(LASTKEY) || 0);
+    if(now - last < VISIT_LOG_INTERVAL_MS) return;
+    const deviceId = ensureDeviceId();
+    const tab = (location.hash || '#sls').replace('#','') || 'sls';
+    postApi({ action:'log_visit', deviceId, role: currentRole, tab }).catch(()=>{});
+    localStorage.setItem(LASTKEY, String(now));
+  } catch(e){ /* diamkan, fitur statistik tidak kritikal */ }
+}
+window.addEventListener('load', ()=>{ setTimeout(maybeLogVisit, 800); });
+
 /* ---------- SINKRONISASI GOOGLE SHEETS ---------- */
 const SYNC_KEY = 'sls_enrekang_apps_script_url';
 // URL Web App Google Apps Script bawaan (ditanam di file, berlaku untuk SEMUA pengunjung & peran).
@@ -2232,6 +2272,77 @@ const riwayatAksiFilter = document.getElementById('riwayatAksiFilter');
 const riwayatDariTgl = document.getElementById('riwayatDariTgl');
 const riwayatSampaiTgl = document.getElementById('riwayatSampaiTgl');
 let riwayatRawRows = [];
+let kunjunganRawRows = [];
+
+/* ---------- statistik kunjungan situs (per perangkat) ---------- */
+function renderKunjunganStats(){
+  const box = document.getElementById('kunjunganStatsBox');
+  const cardsEl = document.getElementById('kunjunganStatCards');
+  const chartEl = document.getElementById('kunjunganTrendChart');
+  if(kunjunganRawRows.length === 0){ box.style.display = 'none'; return; }
+  box.style.display = '';
+
+  const now = new Date();
+  const startOfDay = (d)=>{ const x = new Date(d); x.setHours(0,0,0,0); return x; };
+  const today0 = startOfDay(now);
+  const days7 = new Date(today0); days7.setDate(days7.getDate()-6);
+  const days30 = new Date(today0); days30.setDate(days30.getDate()-29);
+
+  const parsed = kunjunganRawRows.map(r=>({ t: new Date(r.waktu), deviceId: r.deviceId||'-', peran: (r.peran||'umum').toLowerCase() })).filter(r=>!isNaN(r.t));
+
+  const countInRange = (from)=> parsed.filter(r=> !from || r.t >= from).length;
+  const uniqueDevicesInRange = (from)=> new Set(parsed.filter(r=> !from || r.t >= from).map(r=>r.deviceId)).size;
+
+  const byRole = { umum:0, bps7316:0, admin:0 };
+  parsed.forEach(r=>{ byRole[r.peran] = (byRole[r.peran]||0) + 1; });
+
+  cardsEl.innerHTML = `
+    <div class="stat-card"><div class="num">${countInRange(today0)}</div><div class="lbl">Kunjungan hari ini</div></div>
+    <div class="stat-card"><div class="num">${countInRange(days7)}</div><div class="lbl">Kunjungan 7 hari terakhir</div></div>
+    <div class="stat-card"><div class="num">${countInRange(null)}</div><div class="lbl">Total kunjungan tercatat</div></div>
+    <div class="stat-card"><div class="num">${uniqueDevicesInRange(days30)}</div><div class="lbl">Perangkat unik (30 hari)</div></div>
+    <div class="stat-card"><div class="num">${byRole.umum||0}</div><div class="lbl">Dibuka sbg Umum</div></div>
+    <div class="stat-card"><div class="num">${(byRole.bps7316||0)+(byRole.admin||0)}</div><div class="lbl">Dibuka Petugas/Admin</div></div>
+  `;
+
+  const DAYS = 30;
+  const buckets = [];
+  for(let i=DAYS-1;i>=0;i--){
+    const d = new Date(today0); d.setDate(d.getDate()-i);
+    buckets.push({ key: d.toISOString().slice(0,10), label: d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit'}), total:0, devices: new Set() });
+  }
+  const byKey = Object.fromEntries(buckets.map(b=>[b.key,b]));
+  parsed.forEach(r=>{
+    const key = r.t.toISOString().slice(0,10);
+    const b = byKey[key];
+    if(!b) return;
+    b.total++;
+    b.devices.add(r.deviceId);
+  });
+  const W = 760, H = 170, padL = 30, padR = 10, padT = 10, padB = 20;
+  const maxVal = Math.max(1, ...buckets.map(b=>b.total));
+  const stepX = (W - padL - padR) / (buckets.length - 1 || 1);
+  const yOf = v => padT + (H - padT - padB) * (1 - v/maxVal);
+  const xOf = i => padL + stepX * i;
+  const lineTotal = buckets.map((b,i)=>`${xOf(i).toFixed(1)},${yOf(b.total).toFixed(1)}`).join(' ');
+  const lineDevices = buckets.map((b,i)=>`${xOf(i).toFixed(1)},${yOf(b.devices.size).toFixed(1)}`).join(' ');
+  const showEvery = Math.ceil(buckets.length / 8);
+  const labels = buckets.map((b,i)=> i % showEvery === 0 ? `<text x="${xOf(i).toFixed(1)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${b.label}</text>` : '').join('');
+  chartEl.innerHTML = `
+    <div class="chart-title" style="font-size:11.5px;margin-bottom:2px;">
+      <span class="chart-dot" style="background:var(--clay);"></span>Kunjungan
+      <span class="chart-dot" style="background:var(--moss-dark);margin-left:10px;"></span>Perangkat unik
+      <span style="font-weight:400;color:var(--muted);">— harian (30 hari terakhir)</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:200px;" preserveAspectRatio="xMidYMid meet">
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="var(--line)" stroke-width="1"/>
+      <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="var(--line)" stroke-width="1"/>
+      <polyline points="${lineTotal}" fill="none" stroke="var(--clay)" stroke-width="2"/>
+      <polyline points="${lineDevices}" fill="none" stroke="var(--moss-dark)" stroke-width="2"/>
+      ${labels}
+    </svg>
+  `;
+}
 
 function renderVerifStats(){
   const totalSls = SLS_DATA.length;
@@ -2367,6 +2478,14 @@ async function loadRiwayat(){
     riwayatRawRows = Array.isArray(rows) ? rows : [];
     rebuildRiwayatFilterOptions();
     renderRiwayatTrend();
+
+    // Statistik kunjungan dimuat terpisah — kegagalannya tidak boleh mengganggu tabel riwayat.
+    try {
+      const visits = await postApi({ action:'get_kunjungan', token: authToken });
+      kunjunganRawRows = Array.isArray(visits) ? visits : [];
+      renderKunjunganStats();
+    } catch(e){ /* diamkan, statistik kunjungan bersifat pelengkap */ }
+
     if(riwayatRawRows.length === 0){
       riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Belum ada riwayat perubahan data.</td></tr>';
       riwayatCount.textContent = 'Belum ada riwayat.';
