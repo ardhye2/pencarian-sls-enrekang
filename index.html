@@ -645,16 +645,37 @@
     <div class="help-body">
       <h4>🔎 Mencari data</h4>
       <ul>
-        <li>Ketik nama dusun/SLS, desa, kecamatan, atau kode di kotak pencarian. Hasil langsung berubah saat mengetik.</li>
+        <li>Ketik nama dusun/SLS, desa, kecamatan, atau kode di kotak pencarian. Hasil langsung berubah saat mengetik. Tekan tombol <b>/</b> di keyboard untuk langsung fokus ke kotak pencarian tab yang sedang aktif.</li>
         <li>Di HP, filter (kecamatan, desa, dll.) tersembunyi — tekan <b>▸ Tampilkan filter</b> untuk membukanya.</li>
-        <li><b>✕ Reset Filter</b> mengembalikan semua pencarian ke awal.</li>
+        <li><b>✕ Reset Filter</b> mengembalikan semua pencarian ke awal. Pencarian/filter terakhir otomatis diingat saat Anda membuka lagi.</li>
+        <li><b>Mode ringkas</b> menyembunyikan kolom kode dan angka koordinat supaya tabel lebih ringkas di layar kecil.</li>
         <li><b>Klik baris tabel</b> untuk menerbangkan peta di bawahnya ke titik itu.</li>
-        <li>Tombol <b>📋</b> di samping link Google Maps menyalin koordinat sekali klik.</li>
+        <li>Badge <b>⏳ n</b> di judul tab menunjukkan jumlah data yang belum diverifikasi pada tab itu.</li>
+        <li>Badge kuning <b>⚠ Mirip "..."</b> muncul kalau ada nama yang sangat mirip (kemungkinan salah ketik) dengan item lain dalam kelompok yang sama — perlu dicek ulang.</li>
+      </ul>
+      <h4>📍 Koordinat</h4>
+      <ul>
+        <li>Link <b>📍 Lihat di Peta</b> membuka lokasi di Google Maps; angka di sampingnya adalah koordinat presisi. Tombol <b>📋</b> menyalin koordinat sekali klik.</li>
+        <li>Tombol <b>🕒 Riwayat</b> (khusus petugas/Admin yang login) menampilkan riwayat perubahan khusus titik itu saja, tanpa perlu mencari di tabel Riwayat Update.</li>
+        <li>Tombol <b>📱 QR</b> (khusus petugas/Admin) membuat kode QR yang bisa diunduh/dicetak dan ditempel di lokasi fisik — begitu dipindai, halaman langsung membuka titik itu (dan form update koordinat kalau sedang login).</li>
+        <li>Badge merah <b>⚠ Cek Koordinat</b> (khusus petugas/Admin) muncul kalau titik berada jauh di luar perkiraan wilayah Kab. Enrekang — kemungkinan salah input.</li>
       </ul>
       <h4>🗺️ Menggunakan peta</h4>
       <ul>
         <li>Tombol <b>Default/Satelit</b> mengganti tampilan peta. <b>📏</b> mengukur jarak (klik 2 titik). <b>🎯</b> menampilkan lokasi Anda (GPS).</li>
+        <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
+      </ul>
+      <h4>📊 Rekap per Kecamatan</h4>
+      <ul>
+        <li>Grafik batang jumlah Desa/Kelurahan dan SLS per kecamatan, bisa diunduh sebagai gambar PNG lewat tombol <b>⬇ PNG</b> di tiap grafik.</li>
+        <li><b>Mode Perbandingan Kecamatan</b> — pilih dua kecamatan untuk membandingkan jumlah desa, SLS, dan sub-SLS berdampingan.</li>
+      </ul>
+      <h4>🧭 Navigasi</h4>
+      <ul>
+        <li>Tombol <b>🏠 Beranda</b> di pojok atas langsung membawa kembali ke tab Cari Dusun/SLS dari manapun posisi Anda.</li>
+        <li>Tombol Back di browser/HP bisa dipakai untuk kembali ke tab sebelumnya.</li>
+        <li>Indikator sinyal di bawah header menunjukkan status sambungan ke Google Sheets; kalau perangkat benar-benar kehilangan koneksi internet, muncul pita merah di atas halaman.</li>
       </ul>
       <h4>📍 Petugas BPS (login bps7316)</h4>
       <ul>
@@ -664,9 +685,10 @@
       </ul>
       <h4>🛠️ Admin</h4>
       <ul>
-        <li>Bisa <b>Edit</b>, <b>Hapus</b>, tambah data, dan menandai <b>✓ Verifikasi</b> titik dari petugas.</li>
-        <li>Centang <b>belum diverifikasi</b> di tabel untuk melihat titik yang perlu dicek.</li>
-        <li>Tab <b>Riwayat Update</b> mencatat siapa mengubah apa dan kapan.</li>
+        <li>Bisa <b>Edit</b>, <b>Hapus</b>, tambah data (ada validasi otomatis: nama tidak boleh kosong, kode wilayah tidak boleh bertabrakan dengan data lain), dan menandai <b>✓ Verifikasi</b> titik dari petugas.</li>
+        <li>Centang beberapa baris <b>⏳ Belum diverifikasi</b> sekaligus, lalu klik <b>✓ Verifikasi Terpilih</b> di atas tabel untuk verifikasi massal.</li>
+        <li>Tab <b>Riwayat Update</b> mencatat siapa mengubah apa dan kapan, lengkap dengan grafik tren aktivitas &amp; verifikasi 30 hari terakhir. Bisa dicetak, diekspor CSV, atau dicari per petugas/tanggal/aksi.</li>
+        <li>Tombol <b>Unduh GeoJSON</b> di tabel SLS/Desa mengekspor hasil pencarian saat ini untuk dipakai di QGIS atau aplikasi GIS lain.</li>
       </ul>
       <h4>📱 Pasang di HP</h4>
       <ul><li>Buka lewat browser, lalu pilih <b>Tambahkan ke layar utama</b> agar bisa dibuka seperti aplikasi.</li></ul>
