@@ -581,6 +581,14 @@
       <div id="riwayatTrendChart" style="padding:6px 2px 0;"></div>
     </div>
 
+    <div class="chart-box" id="dataHealthBox">
+      <div class="chart-title">
+        <span class="chart-dot" style="background:#b0402a;"></span>📋 Kesehatan Data
+        <span style="font-weight:400;color:var(--muted);">— ringkasan yang perlu dicek</span>
+      </div>
+      <div class="stats-row" id="dataHealthCards" style="margin-top:8px;"></div>
+    </div>
+
     <div class="chart-box" id="kunjunganStatsBox" style="margin-bottom:14px;display:none;">
       <div class="chart-title">
         <span class="chart-dot" style="background:var(--clay);"></span>📊 Statistik Kunjungan Situs
@@ -590,6 +598,20 @@
       <div id="kunjunganTrendChart" style="padding:6px 2px 0;"></div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
         Dihitung dari perangkat (browser) yang membuka situs, dicatat maksimal sekali per 30 menit per perangkat agar tidak dobel saat reload. Alamat IP pengunjung tidak dapat diambil oleh sistem ini (dibatasi Google), jadi yang dihitung adalah perangkat, bukan IP.
+      </div>
+      <button class="btn outline" id="kunjunganExportBtn" style="margin-top:10px;padding:6px 10px;font-size:12px;">Unduh CSV</button>
+    </div>
+
+    <div class="chart-box admin-only" id="petugasSummaryBox" style="margin-bottom:14px;display:none;">
+      <div class="chart-title">
+        <span class="chart-dot" style="background:var(--moss);"></span>👤 Ringkasan per Petugas
+        <span style="font-weight:400;color:var(--muted);">— jumlah aksi dari riwayat update</span>
+      </div>
+      <div class="table-scroll" style="margin-top:8px;">
+        <table>
+          <thead><tr><th class="no-sort">PETUGAS</th><th class="no-sort">PERAN</th><th class="no-sort">TOTAL AKSI</th><th class="no-sort">VERIFIKASI</th></tr></thead>
+          <tbody id="petugasSummaryBody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -1998,6 +2020,23 @@ const rolePill = document.getElementById('rolePill');
 const loginBtn = document.getElementById('loginBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 
+/* ---------- peringatan sesi akan berakhir ---------- */
+const CLIENT_SESSION_SECONDS = 6 * 60 * 60; // samakan dengan SESSION_SECONDS di Code.gs
+const SESSION_WARN_BEFORE_MS = 5 * 60 * 1000; // tampilkan peringatan 5 menit sebelum sesi habis
+let sessionWarnTimer = null;
+function scheduleSessionWarning(loginTimeMs){
+  if(sessionWarnTimer){ clearTimeout(sessionWarnTimer); sessionWarnTimer = null; }
+  if(!loginTimeMs) return;
+  const remaining = (CLIENT_SESSION_SECONDS*1000) - (Date.now() - loginTimeMs);
+  if(remaining <= 0) return; // sesi sudah/hampir habis, biarkan ditangani saat aksi berikutnya (authError)
+  const delay = Math.max(0, remaining - SESSION_WARN_BEFORE_MS);
+  sessionWarnTimer = setTimeout(()=>{
+    if(currentRole !== 'umum'){
+      showToast('⏳ Sesi login Anda akan berakhir sekitar 5 menit lagi. Segera simpan pekerjaan, lalu login ulang.', 'info');
+    }
+  }, delay);
+}
+
 function setRole(role){
   document.body.classList.remove('role-admin','role-bps7316','role-umum');
   document.body.classList.add('role-'+role);
@@ -2019,6 +2058,7 @@ async function postApi(payload){
 
 function forceLogout(){
   authToken = ''; currentUserName = '';
+  if(sessionWarnTimer){ clearTimeout(sessionWarnTimer); sessionWarnTimer = null; }
   try { sessionStorage.removeItem(AUTH_KEY); } catch(e){}
   setRole('umum');
 }
@@ -2033,8 +2073,10 @@ loginBtn.addEventListener('click', ()=>{
       const r = await postApi({ action:'login', username: result.username, password: result.password });
       if(r && r.success){
         authToken = r.token; currentUserName = r.username;
-        try { sessionStorage.setItem(AUTH_KEY, JSON.stringify({token:r.token, username:r.username, role:r.role})); } catch(e){}
+        const loginTimeMs = Date.now();
+        try { sessionStorage.setItem(AUTH_KEY, JSON.stringify({token:r.token, username:r.username, role:r.role, loginTime:loginTimeMs})); } catch(e){}
         setRole(r.role);
+        scheduleSessionWarning(loginTimeMs);
       } else {
         alert((r && r.error) || 'Login gagal.');
       }
@@ -2055,7 +2097,10 @@ setRole('umum');
 // Pulihkan login setelah halaman dimuat ulang (token tetap divalidasi server di setiap aksi).
 try {
   const saved = JSON.parse(sessionStorage.getItem(AUTH_KEY) || 'null');
-  if(saved && saved.token){ authToken = saved.token; currentUserName = saved.username; setRole(saved.role); }
+  if(saved && saved.token){
+    authToken = saved.token; currentUserName = saved.username; setRole(saved.role);
+    scheduleSessionWarning(saved.loginTime || Date.now());
+  }
 } catch(e){}
 
 /* ---------- catat kunjungan situs (untuk statistik admin/petugas) ---------- */
@@ -2344,6 +2389,41 @@ function renderKunjunganStats(){
   `;
 }
 
+/* ---------- ringkasan kesehatan data (perlu ditindaklanjuti) ---------- */
+function renderDataHealth(){
+  ensureDupFlags();
+  const slsBelum = SLS_DATA.filter(r => (r.status_verifikasi||'').toUpperCase()==='BELUM DIVERIFIKASI').length;
+  const desaBelum = DESA_DATA.filter(r => (r.status_verifikasi||'').toUpperCase()==='BELUM DIVERIFIKASI').length;
+  const slsAnomali = SLS_DATA.filter(r => isCoordAnomalous(r.lat, r.lng)).length;
+  const desaAnomali = DESA_DATA.filter(r => isCoordAnomalous(r.lat, r.lng)).length;
+  const slsMirip = slsDupFlags.size;
+  const desaMirip = desaDupFlags.size;
+  document.getElementById('dataHealthCards').innerHTML = `
+    <div class="stat-card"><div class="num">${slsBelum+desaBelum}</div><div class="lbl">Belum diverifikasi (SLS ${slsBelum} + Desa ${desaBelum})</div></div>
+    <div class="stat-card"><div class="num">${slsAnomali+desaAnomali}</div><div class="lbl">Koordinat dicurigai anomali (SLS ${slsAnomali} + Desa ${desaAnomali})</div></div>
+    <div class="stat-card"><div class="num">${slsMirip+desaMirip}</div><div class="lbl">Nama mirip terdeteksi (SLS ${slsMirip} + Desa ${desaMirip})</div></div>
+  `;
+}
+
+/* ---------- ringkasan jumlah aksi per petugas (dari Riwayat Update) ---------- */
+function renderPetugasSummary(){
+  const box = document.getElementById('petugasSummaryBox');
+  const body = document.getElementById('petugasSummaryBody');
+  if(riwayatRawRows.length === 0){ box.style.display = 'none'; return; }
+  const byUser = {};
+  riwayatRawRows.forEach(r=>{
+    const u = r.diperbarui_oleh || '(tidak diisi)';
+    if(!byUser[u]) byUser[u] = { total:0, verifikasi:0, peran: r.peran||'' };
+    byUser[u].total++;
+    if((r.aksi||'').toUpperCase()==='VERIFIKASI') byUser[u].verifikasi++;
+  });
+  const rows = Object.entries(byUser).sort((a,b)=>b[1].total-a[1].total);
+  box.style.display = '';
+  body.innerHTML = rows.map(([name,d])=>`
+    <tr><td>${name}</td><td>${(d.peran||'-').toUpperCase()}</td><td>${d.total}</td><td>${d.verifikasi}</td></tr>
+  `).join('');
+}
+
 function renderVerifStats(){
   const totalSls = SLS_DATA.length;
   const verifSls = SLS_DATA.filter(r => (r.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI').length;
@@ -2460,6 +2540,7 @@ let riwayatCurrentFiltered = [];
 
 async function loadRiwayat(){
   renderVerifStats();
+  renderDataHealth();
   if(!APPS_SCRIPT_URL){
     riwayatBody.innerHTML = '<tr class="empty-row"><td colspan="9">Belum tersambung ke Google Sheets — riwayat tidak tersedia dalam mode offline.</td></tr>';
     riwayatCount.textContent = 'Mode offline.';
@@ -2478,6 +2559,7 @@ async function loadRiwayat(){
     riwayatRawRows = Array.isArray(rows) ? rows : [];
     rebuildRiwayatFilterOptions();
     renderRiwayatTrend();
+    renderPetugasSummary();
 
     // Statistik kunjungan dimuat terpisah — kegagalannya tidak boleh mengganggu tabel riwayat.
     try {
@@ -2623,6 +2705,10 @@ document.getElementById('riwayatExportBtn').addEventListener('click', ()=>{
     r.nama_item, r.kecamatan, r.ringkasan, r.diperbarui_oleh, r.peran
   ]);
   downloadCsv('riwayat_perubahan.csv', headers, rows);
+});
+document.getElementById('kunjunganExportBtn').addEventListener('click', ()=>{
+  downloadCsv('kunjungan_situs.csv', ['Waktu','ID Perangkat','Peran','Tab'],
+    kunjunganRawRows.map(r=>[new Date(r.waktu).toLocaleString('id-ID'), r.deviceId, r.peran, r.tab]));
 });
 document.getElementById('riwayatPrintBtn').addEventListener('click', ()=>{
   const prevShown = riwayatShown;
