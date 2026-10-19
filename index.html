@@ -1495,6 +1495,16 @@ function wirePetaLayerEvents(){
       const [lng, lat] = f.geometry.coordinates;
       const html = `<b>${f.properties.label}</b><br>${f.properties.sub||''}<br><a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank">Buka di Google Maps</a>`;
       new maplibregl.Popup({offset:10}).setLngLat([lng,lat]).setHTML(html).addTo(mapPeta);
+      // Titik Dusun/SLS yang diklik -> kalau ada batas poligonnya, langsung sorot & zoom pas ke batas itu
+      // (bukan cuma buka popup), supaya satu klik langsung menuju "peta"-nya sendiri.
+      if(layerId === 'peta-sls-point' && slsBoundaryData){
+        const p = f.properties;
+        const boundaryFeature = findSlsBoundaryFeature(p.kdkec, p.kddesa, p.kdsls, p.kdsubsls);
+        if(boundaryFeature){
+          highlightBoundary(mapPeta, mapPeta.getContainer().id, boundaryFeature.properties.gid);
+          mapPeta.fitBounds(bboxOfFeature(boundaryFeature), {padding:60, maxZoom:17, duration:600});
+        }
+      }
     });
     mapPeta.on('mouseenter', layerId, ()=>{ mapPeta.getCanvas().style.cursor = 'pointer'; });
     mapPeta.on('mouseleave', layerId, ()=>{ mapPeta.getCanvas().style.cursor = ''; });
@@ -1903,7 +1913,8 @@ function renderPeta(){
     SLS_DATA.filter(r=>!kec || r.nmkec===kec).forEach(r=>{
       if(r.lat==null || r.lng==null || isNaN(r.lat) || isNaN(r.lng)) return;
       slsFeatures.push({ type:'Feature', geometry:{type:'Point', coordinates:[r.lng, r.lat]},
-        properties:{ label: r.nmsls+' (Dusun/SLS)', sub: `${r.nmdesa}, ${r.nmkec}` } });
+        properties:{ label: r.nmsls+' (Dusun/SLS)', sub: `${r.nmdesa}, ${r.nmkec}`,
+          kdkec:r.kdkec, kddesa:r.kddesa, kdsls:r.kdsls, kdsubsls:r.kdsubsls } });
       allPts.push({lat:r.lat,lng:r.lng});
       nSls++;
     });
