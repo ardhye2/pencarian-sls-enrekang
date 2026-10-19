@@ -292,7 +292,7 @@
   @keyframes shimmer{0%{background-position:-200px 0;}100%{background-position:calc(200px + 100%) 0;}}
   .skeleton-row td{padding:10px 8px;}
   .skeleton-bar{height:12px;border-radius:4px;background:linear-gradient(90deg, var(--track-bg) 25%, var(--line) 50%, var(--track-bg) 75%);background-size:200px 100%;animation:shimmer 1.3s infinite linear;}
-  .leaflet-map{height:380px;width:100%;}
+  .leaflet-map{height:440px;width:100%;}
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
 
@@ -699,6 +699,8 @@
         <li>Tombol <b>Default/Satelit</b> mengganti tampilan peta. <b>📏</b> mengukur jarak (klik 2 titik). <b>🎯</b> menampilkan lokasi Anda (GPS).</li>
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
         <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Tombol <b>🧭</b> di pojok peta menyembunyikan/menampilkan lapisan batas wilayah ini.</li>
+        <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
+        <li>Tombol <b>⛶</b> (layar penuh) di pojok kanan atas peta membesarkan tampilan peta ke seluruh layar, supaya lebih leluasa mencari dusun yang letaknya berdekatan — mirip tab Peta Wilayah Lengkap, tapi tetap interaktif (bisa klik untuk sorot & lihat nama).</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
       </ul>
       <h4>📊 Rekap per Kecamatan</h4>
@@ -1157,6 +1159,7 @@ function createMap(containerId, scrollZoom){
     scrollZoom: scrollZoom
   });
   map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
+  map.addControl(new maplibregl.FullscreenControl(), 'top-right'); // peta bisa dibesarkan layar penuh untuk zoom lebih leluasa
   addSatelliteToggle(map, containerId);
   addMeasureTool(map, containerId);
   addLocateMeControl(map, containerId);
@@ -1353,10 +1356,38 @@ function ensureBoundaryLayer(map){
     map.addLayer({ id:'sls-boundaries-line', type:'line', source:'sls-boundaries',
       paint:{ 'line-color':['case',['boolean',['feature-state','selected'],false],'#f28c1b','#1f7fae'],
         'line-width':['case',['boolean',['feature-state','selected'],false],3,1] } });
+    // Label nama SLS (+ kode sub-SLS kalau ada) — baru muncul setelah di-zoom cukup dekat, supaya
+    // tidak numpuk tak terbaca saat peta masih menampilkan seluruh kabupaten.
+    map.addLayer({ id:'sls-boundaries-label', type:'symbol', source:'sls-boundaries', minzoom:12.5,
+      layout:{
+        'text-field':['case', ['>', ['to-number', ['get','kdsubsls']], 0],
+          ['concat', ['get','nmsls'], ' (Sub ', ['get','kdsubsls'], ')'],
+          ['get','nmsls']
+        ],
+        'text-font':['Noto Sans Regular'], 'text-size':10.5, 'text-max-width':9,
+        'symbol-placement':'point', 'text-allow-overlap':false
+      },
+      paint:{ 'text-color':'#13324a', 'text-halo-color':'#ffffff', 'text-halo-width':1.4 } });
+    wireBoundaryClickPopup(map);
   } else {
     map.getSource('sls-boundaries').setData(slsBoundaryData);
   }
   if(map._applyBoundaryVisibility) map._applyBoundaryVisibility();
+}
+
+/* Klik langsung di poligon batas (bukan cuma baris tabel) -> munculkan nama, kode, & info SLS/sub-SLS itu. */
+function wireBoundaryClickPopup(map){
+  map.on('click', 'sls-boundaries-fill', (e)=>{
+    const f = e.features[0];
+    const p = f.properties || {};
+    const subNum = Number(p.kdsubsls) || 0;
+    const subTxt = subNum > 0 ? ` <span style="color:#e08b1d;">— Sub-SLS ${p.kdsubsls}</span>` : '';
+    const html = `<b>${p.nmsls||'-'}</b>${subTxt}<br>${p.nmdesa||'-'}, Kec. ${p.nmkec||'-'}<br>` +
+      `<span style="font-size:11px;color:#666;">Kode: ${p.kdkec}.${p.kddesa}.${p.kdsls}${subNum>0 ? '.'+p.kdsubsls : ''}</span>`;
+    new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(html).addTo(map);
+  });
+  map.on('mouseenter', 'sls-boundaries-fill', ()=>{ map.getCanvas().style.cursor = 'pointer'; });
+  map.on('mouseleave', 'sls-boundaries-fill', ()=>{ map.getCanvas().style.cursor = ''; });
 }
 
 /* Tombol kecil di pojok peta untuk sembunyikan/tampilkan lapisan batas wilayah. */
@@ -1365,7 +1396,7 @@ function addBoundaryToggle(map, containerId){
   btn.type = 'button';
   btn.innerHTML = '🧭';
   btn.title = 'Tampilkan/sembunyikan batas wilayah SLS';
-  btn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+  btn.style.cssText = 'position:absolute;top:50px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
   document.getElementById(containerId).appendChild(btn);
   slsBoundaryVisible[containerId] = true;
   function applyVisibility(){
@@ -1479,6 +1510,7 @@ function addPetaLegend(containerId){
     <div class="map-legend-item"><span class="map-legend-dot" style="background:#e08b1d;"></span>Desa/Kelurahan</div>
     <div class="map-legend-item"><span class="map-legend-dot map-legend-cluster">12</span>Klaster titik — klik untuk perbesar</div>
     <div class="map-legend-item">🧭 Tombol di pojok kanan atas: sembunyikan/tampilkan batas wilayah SLS</div>
+    <div class="map-legend-item">⛶ Tombol layar penuh untuk zoom lebih leluasa — klik langsung batas wilayah untuk lihat nama & kode</div>
   `;
   document.getElementById(containerId).appendChild(el);
 }
