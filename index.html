@@ -698,6 +698,7 @@
       <ul>
         <li>Tombol <b>Default/Satelit</b> mengganti tampilan peta. <b>📏</b> mengukur jarak (klik 2 titik). <b>🎯</b> menampilkan lokasi Anda (GPS).</li>
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
+        <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Tombol <b>🧭</b> di pojok peta menyembunyikan/menampilkan lapisan batas wilayah ini.</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
       </ul>
       <h4>📊 Rekap per Kecamatan</h4>
@@ -1288,11 +1289,125 @@ function initMaps(){
   mapSls = createMap('slsMap', false);
   mapDesa = createMap('desaMap', false);
   mapPeta = createMap('petaMap', true);
+  if(mapSls){
+    mapSls.on('load', ()=>ensureBoundaryLayer(mapSls));
+    mapSls.on('style.load', ()=>ensureBoundaryLayer(mapSls));
+    addBoundaryToggle(mapSls, 'slsMap');
+  }
   if(mapPeta){
     mapPeta.on('load', ensurePetaLayers);
     mapPeta.on('style.load', ensurePetaLayers);
+    mapPeta.on('load', ()=>ensureBoundaryLayer(mapPeta));
+    mapPeta.on('style.load', ()=>ensureBoundaryLayer(mapPeta));
     addPetaLegend('petaMap');
+    addBoundaryToggle(mapPeta, 'petaMap');
   }
+}
+
+/* ---------- BATAS WILAYAH SLS (poligon dari QGIS, opsional — fitur tetap jalan tanpa file ini) ----------
+   File batas_sls.geojson (kalau ada, ditaruh satu folder dengan index.html) berisi poligon batas tiap
+   SLS/sub-SLS dari BPS, dicocokkan ke data SLS lewat kode kdkec+kddesa+kdsls+kdsubsls. */
+let slsBoundaryData = null;
+let slsBoundaryIndex = new Map();
+let slsBoundaryLoadPromise = null;
+let slsBoundaryVisible = {}; // simpan status toggle per peta (slsMap/petaMap)
+
+function boundaryKey(kdkec, kddesa, kdsls, kdsubsls){
+  return [Number(kdkec)||0, Number(kddesa)||0, Number(kdsls)||0, Number(kdsubsls)||0].join('-');
+}
+function findSlsBoundaryFeature(kdkec, kddesa, kdsls, kdsubsls){
+  if(!slsBoundaryIndex.size) return null;
+  return slsBoundaryIndex.get(boundaryKey(kdkec, kddesa, kdsls, kdsubsls)) || null;
+}
+function ensureSlsBoundaries(){
+  if(slsBoundaryLoadPromise) return slsBoundaryLoadPromise;
+  slsBoundaryLoadPromise = (async ()=>{
+    try {
+      const res = await fetch('batas_sls.geojson');
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      slsBoundaryData = data;
+      slsBoundaryIndex = new Map();
+      (data.features || []).forEach(f=>{
+        const p = f.properties || {};
+        slsBoundaryIndex.set(boundaryKey(p.kdkec, p.kddesa, p.kdsls, p.kdsubsls), f);
+      });
+      [mapSls, mapPeta].forEach(m=>{ if(m) ensureBoundaryLayer(m); });
+    } catch(e){
+      // Wajar kalau file belum ditaruh di server — fitur batas wilayah nonaktif, sisanya tetap jalan normal.
+      console.warn('Batas wilayah SLS (batas_sls.geojson) tidak tersedia:', e && e.message);
+      slsBoundaryData = null;
+    }
+  })();
+  return slsBoundaryLoadPromise;
+}
+
+/* Pasang source+layer poligon batas SLS ke sebuah peta (dipanggil ulang tiap style peta berganti). */
+function ensureBoundaryLayer(map){
+  if(!map || !map.isStyleLoaded() || !slsBoundaryData) return;
+  if(!map.getSource('sls-boundaries')){
+    map.addSource('sls-boundaries', { type:'geojson', data:slsBoundaryData, promoteId:'gid' });
+    map.addLayer({ id:'sls-boundaries-fill', type:'fill', source:'sls-boundaries',
+      paint:{ 'fill-color':'#2ea8e0',
+        'fill-opacity':['case',['boolean',['feature-state','selected'],false],0.35,0.07] } });
+    map.addLayer({ id:'sls-boundaries-line', type:'line', source:'sls-boundaries',
+      paint:{ 'line-color':['case',['boolean',['feature-state','selected'],false],'#f28c1b','#1f7fae'],
+        'line-width':['case',['boolean',['feature-state','selected'],false],3,1] } });
+  } else {
+    map.getSource('sls-boundaries').setData(slsBoundaryData);
+  }
+  if(map._applyBoundaryVisibility) map._applyBoundaryVisibility();
+}
+
+/* Tombol kecil di pojok peta untuk sembunyikan/tampilkan lapisan batas wilayah. */
+function addBoundaryToggle(map, containerId){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = '🧭';
+  btn.title = 'Tampilkan/sembunyikan batas wilayah SLS';
+  btn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+  document.getElementById(containerId).appendChild(btn);
+  slsBoundaryVisible[containerId] = true;
+  function applyVisibility(){
+    const visible = slsBoundaryVisible[containerId];
+    ['sls-boundaries-fill','sls-boundaries-line'].forEach(id=>{
+      if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    });
+    btn.style.borderColor = visible ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
+    btn.style.background = visible ? '#eef6fb' : 'var(--card-bg,#fff)';
+  }
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    slsBoundaryVisible[containerId] = !slsBoundaryVisible[containerId];
+    applyVisibility();
+  });
+  map._applyBoundaryVisibility = applyVisibility;
+}
+
+/* Sorot satu poligon SLS (feature-state) & hapus sorotan sebelumnya pada peta yang sama. */
+let _highlightedBoundaryGid = {};
+function highlightBoundary(map, containerId, gid){
+  if(!map || !map.getSource('sls-boundaries')) return;
+  const prev = _highlightedBoundaryGid[containerId];
+  if(prev != null){
+    try { map.setFeatureState({source:'sls-boundaries', id:prev}, {selected:false}); } catch(e){}
+  }
+  if(gid != null){
+    try { map.setFeatureState({source:'sls-boundaries', id:gid}, {selected:true}); } catch(e){}
+  }
+  _highlightedBoundaryGid[containerId] = gid;
+}
+
+/* Hitung kotak pembatas (bbox) sebuah fitur Polygon/MultiPolygon, untuk map.fitBounds(). */
+function bboxOfFeature(feature){
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  (function rec(c){
+    if(typeof c[0] === 'number'){
+      if(c[0]<minX) minX=c[0]; if(c[0]>maxX) maxX=c[0];
+      if(c[1]<minY) minY=c[1]; if(c[1]>maxY) maxY=c[1];
+    } else { c.forEach(rec); }
+  })(feature.geometry.coordinates);
+  return [[minX,minY],[maxX,maxY]];
 }
 
 /* Pasang sumber data + layer cluster untuk Peta Sebaran (dipanggil ulang tiap style peta berganti,
@@ -1363,6 +1478,7 @@ function addPetaLegend(containerId){
     <div class="map-legend-item"><span class="map-legend-dot" style="background:#2ea8e0;"></span>Dusun/SLS</div>
     <div class="map-legend-item"><span class="map-legend-dot" style="background:#e08b1d;"></span>Desa/Kelurahan</div>
     <div class="map-legend-item"><span class="map-legend-dot map-legend-cluster">12</span>Klaster titik — klik untuk perbesar</div>
+    <div class="map-legend-item">🧭 Tombol di pojok kanan atas: sembunyikan/tampilkan batas wilayah SLS</div>
   `;
   document.getElementById(containerId).appendChild(el);
 }
@@ -1399,7 +1515,7 @@ function fitToPoints(map, points){
 
 /* Klik baris tabel -> peta terbang ke titik yang sama & buka popup-nya */
 let _focusedMarker = null;
-function focusRowOnMap(ev, tr, kind, lat, lng){
+function focusRowOnMap(ev, tr, kind, lat, lng, rowId){
   if(ev.target.closest('button, a, input, select, .verif-badge')) return; // jangan ganggu tombol/link di dalam baris
   if(lat==null || lng==null || isNaN(lat) || isNaN(lng)) return;
   const map = kind==='sls' ? mapSls : mapDesa;
@@ -1411,7 +1527,21 @@ function focusRowOnMap(ev, tr, kind, lat, lng){
   if(_focusedMarker){ _focusedMarker.style.transform=''; _focusedMarker.style.zIndex=''; _focusedMarker.style.background='#2ea8e0'; }
   const m = arr.find(mk=>{ const ll = mk.getLngLat(); return Math.abs(ll.lat-lat)<1e-9 && Math.abs(ll.lng-lng)<1e-9; });
   map.getContainer().closest('.map-box').scrollIntoView({behavior:'smooth', block:'nearest'});
-  map.flyTo({center:[lng,lat], zoom:Math.max(map.getZoom(),15), essential:true});
+
+  // Kalau batas poligon SLS/sub-SLS tersedia untuk baris ini, sorot & zoom pas ke batasnya —
+  // lebih akurat daripada sekadar terbang ke titik koordinat.
+  let boundaryFeature = null;
+  if(kind === 'sls' && rowId != null && slsBoundaryData){
+    const row = SLS_DATA.find(r=>r.id === rowId);
+    if(row) boundaryFeature = findSlsBoundaryFeature(row.kdkec, row.kddesa, row.kdsls, row.kdsubsls);
+  }
+  if(boundaryFeature){
+    highlightBoundary(map, map.getContainer().id, boundaryFeature.properties.gid);
+    map.fitBounds(bboxOfFeature(boundaryFeature), {padding:60, maxZoom:17, duration:600});
+  } else {
+    if(kind === 'sls') highlightBoundary(map, map.getContainer().id, null);
+    map.flyTo({center:[lng,lat], zoom:Math.max(map.getZoom(),15), essential:true});
+  }
   if(m){
     const el = m.getElement();
     el.style.background = '#f28c1b';
@@ -1531,7 +1661,7 @@ function renderSls(){
       </div></td></tr>`;
   } else {
     const rows = filtered.slice(0,500).map((row,i)=>`
-      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng})">
+      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng},${row.id})">
         <td class="no">${i+1}</td>
         <td>${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}</td>
         <td class="col-code">${pad(row.kdkec,3)}</td>
@@ -3167,6 +3297,7 @@ function openDesaCoordEdit(id){
 
 /* ---------- INIT ---------- */
 initMaps();
+ensureSlsBoundaries(); // muat batas poligon SLS di latar belakang (opsional, tidak memblokir tampilan)
 // Kalau halaman dibuka dengan hash tab tertentu (mis. tautan dibagikan dengan #rekap),
 // langsung tampilkan tab itu; kalau tidak ada, biarkan tab default (Cari Dusun/SLS) aktif.
 if(location.hash){
