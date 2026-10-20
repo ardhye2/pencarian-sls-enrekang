@@ -1103,12 +1103,36 @@ const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
    berjalan — bukan lewat map.setStyle() mengganti seluruh style. Dengan begitu, toggle Default/Satelit
    tidak pernah membongkar ulang peta, sehingga semua lapisan kustom (batas wilayah, klaster, dll.)
    TIDAK PERNAH hilang/perlu dipasang ulang, dan beralih mode jadi instan tanpa flicker. */
-function ensureSatelliteSource(map){
-  if(!map || !map.isStyleLoaded() || map.getLayer('esri-satellite-layer')) return;
+// Prefix/nama layer kustom milik kita sendiri — TIDAK boleh ikut disembunyikan saat toggle Default/Satelit.
+const CUSTOM_LAYER_PREFIXES = ['esri-satellite', 'sls-boundaries', 'peta-sls', 'peta-desa', 'cluster'];
+function isCustomLayerId(id){
+  return CUSTOM_LAYER_PREFIXES.some(p => id === p || id.indexOf(p) === 0);
+}
+/* Hitung ULANG daftar id layer bawaan style Default setiap kali dibutuhkan (bukan hanya sekali di
+   event 'load'), lalu sisihkan hasilnya di cache map._baseLayerIds. Dengan menghitung ulang dan
+   menyaring layer kustom lewat nama (bukan lewat "kapan dipasang"), toggle ini tidak lagi bergantung
+   pada urutan/timing persis antara ensureSatelliteSource, ensureBoundaryLayer, ensurePetaLayers, dll. */
+function getBaseLayerIds(map){
   try {
-    // Simpan daftar layer bawaan style (sekali saja, sebelum ada layer tambahan apa pun) supaya nanti
-    // bisa disembunyikan/ditampilkan utuh saat toggle, tanpa ikut menyembunyikan layer kustom kita sendiri.
-    if(!map._baseLayerIds) map._baseLayerIds = map.getStyle().layers.map(l=>l.id);
+    const layers = map.getStyle() && map.getStyle().layers;
+    if(Array.isArray(layers) && layers.length){
+      map._baseLayerIds = layers.map(l=>l.id).filter(id => !isCustomLayerId(id));
+    }
+  } catch(e){
+    console.warn('Gagal membaca daftar layer peta Default:', e && e.message);
+  }
+  return map._baseLayerIds || [];
+}
+function ensureSatelliteSource(map){
+  if(!map) return;
+  try {
+    if(!map.isStyleLoaded()){
+      // Style belum siap sepenuhnya — coba lagi sebentar lagi alih-alih diam saja gagal.
+      setTimeout(()=>ensureSatelliteSource(map), 300);
+      return;
+    }
+    getBaseLayerIds(map); // pastikan cache terisi sedini mungkin
+    if(map.getLayer('esri-satellite-layer')) return;
     if(!map.getSource('esri-satellite')){
       map.addSource('esri-satellite', {
         type: 'raster',
@@ -1117,9 +1141,10 @@ function ensureSatelliteSource(map){
         attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics'
       });
     }
+    const baseIds = getBaseLayerIds(map);
     map.addLayer(
       { id:'esri-satellite-layer', type:'raster', source:'esri-satellite', minzoom:0, maxzoom:19, layout:{visibility:'none'} },
-      map._baseLayerIds[0] // taruh di paling bawah tumpukan, di bawah semua layer peta Default
+      baseIds[0] // taruh di paling bawah tumpukan, di bawah semua layer peta Default
     );
   } catch(e){
     console.warn('Gagal memasang layer citra satelit:', e && e.message);
@@ -1127,13 +1152,27 @@ function ensureSatelliteSource(map){
 }
 /* Tampilkan citra satelit (sembunyikan layer peta Default), atau sebaliknya. */
 function setBaseMapMode(map, mode){
-  if(!map || !map._baseLayerIds) return;
-  const showDefault = mode !== 'satellite';
-  map._baseLayerIds.forEach(id=>{
-    if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', showDefault ? 'visible' : 'none');
-  });
-  if(map.getLayer('esri-satellite-layer')){
-    map.setLayoutProperty('esri-satellite-layer', 'visibility', showDefault ? 'none' : 'visible');
+  if(!map) return;
+  try {
+    const showDefault = mode !== 'satellite';
+    const baseIds = getBaseLayerIds(map);
+    if(!baseIds.length){
+      console.warn('Toggle Satelit: daftar layer peta Default kosong, dicoba lagi...');
+      setTimeout(()=>setBaseMapMode(map, mode), 300);
+      return;
+    }
+    baseIds.forEach(id=>{
+      if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', showDefault ? 'visible' : 'none');
+    });
+    if(!map.getLayer('esri-satellite-layer')){
+      // Lapisan satelit belum sempat terpasang (mis. style belum selesai saat tombol diklik) — pasang sekarang.
+      ensureSatelliteSource(map);
+    }
+    if(map.getLayer('esri-satellite-layer')){
+      map.setLayoutProperty('esri-satellite-layer', 'visibility', showDefault ? 'none' : 'visible');
+    }
+  } catch(e){
+    console.error('Gagal mengganti mode peta (Default/Satelit):', e && e.message);
   }
 }
 
