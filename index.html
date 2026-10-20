@@ -1396,6 +1396,7 @@ function initMaps(){
     mapSls.on('load', ()=>ensureBoundaryLayer(mapSls));
     mapSls.on('style.load', ()=>ensureBoundaryLayer(mapSls));
     addBoundaryToggle(mapSls, 'slsMap');
+    addLabelToggle(mapSls, 'slsMap');
   }
   if(mapDesa){
     // Desa tidak punya file batas sendiri, tapi batas SLS-nya tetap dipasang di sini supaya bisa
@@ -1404,6 +1405,7 @@ function initMaps(){
     mapDesa.on('load', ()=>ensureBoundaryLayer(mapDesa));
     mapDesa.on('style.load', ()=>ensureBoundaryLayer(mapDesa));
     addBoundaryToggle(mapDesa, 'desaMap');
+    addLabelToggle(mapDesa, 'desaMap');
   }
   if(mapPeta){
     mapPeta.on('load', ()=>ensureSatelliteSource(mapPeta));
@@ -1413,6 +1415,7 @@ function initMaps(){
     mapPeta.on('style.load', ()=>ensureBoundaryLayer(mapPeta));
     addPetaLegend('petaMap');
     addBoundaryToggle(mapPeta, 'petaMap');
+    addLabelToggle(mapPeta, 'petaMap');
   }
 }
 
@@ -1479,11 +1482,17 @@ function ensureBoundaryLayer(map){
       // tidak numpuk tak terbaca saat peta masih menampilkan seluruh kabupaten. Dipisah try/catch sendiri
       // supaya kalau gagal (mis. style peta tidak punya "glyphs"), poligon & klik-popup tetap jalan normal.
       try {
-        map.addLayer({ id:'sls-boundaries-label', type:'symbol', source:'sls-boundaries', minzoom:12.5,
+        map.addLayer({ id:'sls-boundaries-label', type:'symbol', source:'sls-boundaries', minzoom:13.3,
           layout:{
             'text-field':['concat', ['get','nmsls'], ' (Sub ', ['get','kdsubsls'], ')'],
             'text-font':['Noto Sans Regular'], 'text-size':10.5, 'text-max-width':9,
-            'symbol-placement':'point', 'text-allow-overlap':false
+            'symbol-placement':'point', 'text-allow-overlap':false, 'text-ignore-placement':false,
+            // Geser teks sedikit ke bawah titik tengah SLS, supaya tidak langsung menimpa marker/titik
+            // lokasi yang sering berada persis di koordinat yang sama.
+            'text-anchor':'top', 'text-offset':[0, 0.9],
+            // Prioritaskan label SLS yang sedang disorot (hasil klik/pencarian) supaya tidak kalah
+            // tertutup oleh label SLS tetangga saat posisinya berdekatan.
+            'symbol-sort-key':['case',['boolean',['feature-state','selected'],false], 0, 100]
           },
           paint:{ 'text-color':'#13324a', 'text-halo-color':'#ffffff', 'text-halo-width':1.4 } });
       } catch(labelErr){
@@ -1493,6 +1502,7 @@ function ensureBoundaryLayer(map){
       map.getSource('sls-boundaries').setData(slsBoundaryData);
     }
     if(map._applyBoundaryVisibility) map._applyBoundaryVisibility();
+    if(map._applyLabelVisibility) map._applyLabelVisibility();
   } catch(e){
     console.warn('Gagal memasang lapisan batas wilayah SLS:', e && e.message);
   }
@@ -1535,6 +1545,32 @@ function addBoundaryToggle(map, containerId){
     applyVisibility();
   });
   map._applyBoundaryVisibility = applyVisibility;
+}
+
+/* Tombol terpisah untuk sembunyikan/tampilkan LABEL nama SLS saja (garis batas tetap ada) —
+   berguna di area padat (banyak Dusun/Lingkungan berdekatan) supaya tulisan tidak bikin ramai,
+   sementara garis batas wilayahnya sendiri tetap bisa dilihat. */
+let slsLabelVisible = {};
+function addLabelToggle(map, containerId){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = 'Aa';
+  btn.title = 'Tampilkan/sembunyikan label nama SLS';
+  btn.style.cssText = 'position:absolute;top:116px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:12.5px;font-weight:700;line-height:1;color:var(--ink,#132437);';
+  document.getElementById(containerId).appendChild(btn);
+  slsLabelVisible[containerId] = true;
+  function applyVisibility(){
+    const visible = slsLabelVisible[containerId];
+    if(map.getLayer('sls-boundaries-label')) map.setLayoutProperty('sls-boundaries-label', 'visibility', visible ? 'visible' : 'none');
+    btn.style.borderColor = visible ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
+    btn.style.background = visible ? '#eef6fb' : 'var(--card-bg,#fff)';
+  }
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    slsLabelVisible[containerId] = !slsLabelVisible[containerId];
+    applyVisibility();
+  });
+  map._applyLabelVisibility = applyVisibility;
 }
 
 /* Sorot satu poligon SLS (feature-state) & hapus sorotan sebelumnya pada peta yang sama. */
