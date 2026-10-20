@@ -1456,8 +1456,15 @@ function ensureSlsBoundaries(){
 
 /* Pasang source+layer poligon batas SLS ke sebuah peta (dipanggil ulang tiap style peta berganti). */
 function ensureBoundaryLayer(map){
-  if(!map || !map.isStyleLoaded() || !slsBoundaryData) return;
+  // CATATAN: sengaja TIDAK memakai map.isStyleLoaded() sebagai syarat di sini. Setelah layer citra
+  // satelit tersembunyi (esri-satellite-layer) dipasang, MapLibre bisa jadi tidak pernah menandai
+  // style sebagai "fully loaded" (karena tile raster yang tersembunyi tidak pernah diminta), sehingga
+  // isStyleLoaded() macet di false selamanya dan layer batas wilayah tidak pernah terpasang. Cukup
+  // pastikan objek style sudah bisa diakses (dipanggil dari event 'load'/'style.load' atau setelah
+  // fetch geojson selesai, yang berarti style dasar sudah siap meski sebagian tile belum selesai).
+  if(!map || !slsBoundaryData) return;
   try {
+    if(!map.getStyle()) { setTimeout(()=>ensureBoundaryLayer(map), 300); return; }
     if(!map.getSource('sls-boundaries')){
       map.addSource('sls-boundaries', { type:'geojson', data:slsBoundaryData, promoteId:'gid' });
       map.addLayer({ id:'sls-boundaries-fill', type:'fill', source:'sls-boundaries',
