@@ -703,9 +703,9 @@
       </ul>
       <h4>🗺️ Menggunakan peta</h4>
       <ul>
-        <li>Tombol <b>Default/Satelit</b> mengganti tampilan peta. <b>📏</b> mengukur jarak (klik 2 titik). <b>🎯</b> menampilkan lokasi Anda (GPS). <b>📷</b> menyimpan tampilan peta saat ini sebagai gambar PNG (untuk lampiran laporan lapangan).</li>
+        <li>Tombol <b>🗺️ Lapisan Peta</b> di pojok kanan atas membuka satu menu berisi semua pengaturan peta: ganti <b>Default/Satelit</b>, sembunyikan/tampilkan <b>batas wilayah SLS</b> & <b>label nama SLS</b>, <b>📏 Ukur Jarak</b> (klik 2 titik di peta), <b>🎯 Gunakan Lokasi Saya</b> (GPS), dan <b>📷 Simpan Gambar Peta</b> (PNG, untuk lampiran laporan lapangan).</li>
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
-        <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Tombol <b>🧭</b> di pojok peta menyembunyikan/menampilkan lapisan batas wilayah ini.</li>
+        <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Lewat menu <b>🗺️ Lapisan Peta</b>, lapisan batas wilayah ini bisa disembunyikan/ditampilkan kapan saja.</li>
         <li>Mengklik baris <b>Desa/Kelurahan</b> di tab Cari Koordinat per Desa akan menyorot gabungan semua batas SLS di dalam desa itu sekaligus (karena belum ada file batas Desa tersendiri), sehingga wilayah desanya tetap kelihatan.</li>
         <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
         <li>Tombol <b>⛶</b> (layar penuh, di bawah tombol +/- kiri atas) membesarkan tampilan peta ke seluruh layar, supaya lebih leluasa mencari dusun yang letaknya berdekatan — mirip tab Peta Wilayah Lengkap, tapi tetap interaktif (bisa klik untuk sorot & lihat nama).</li>
@@ -1176,17 +1176,102 @@ function setBaseMapMode(map, mode){
   }
 }
 
-function addSatelliteToggle(map, containerId){
+/* ---------- MENU "LAPISAN PETA" (gabungan semua kontrol peta jadi satu panel, gaya Google Maps) ---------- */
+function createLayersMenu(map, containerId){
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;top:10px;right:10px;z-index:6;font-family:Arial,sans-serif;';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.innerHTML = '🗺️ <span style="margin-left:2px;">Lapisan Peta</span>';
+  toggleBtn.style.cssText = 'display:flex;align-items:center;gap:4px;border:1px solid var(--line,#dbe3ec);border-radius:8px;background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:8px 12px;font-size:12.5px;font-weight:700;color:var(--ink,#132437);cursor:pointer;white-space:nowrap;';
+  wrap.appendChild(toggleBtn);
+
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:8px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px;display:flex;gap:6px;font-family:Arial,sans-serif;';
+  panel.style.cssText = 'display:none;margin-top:6px;width:230px;max-height:min(70vh,520px);overflow:auto;border:1px solid var(--line,#dbe3ec);border-radius:10px;background:var(--card-bg,#fff);box-shadow:0 4px 18px rgba(19,36,55,0.3);';
+  wrap.appendChild(panel);
+
+  function makeSection(title){
+    const sec = document.createElement('div');
+    sec.style.cssText = 'padding:10px 12px;border-bottom:1px solid #eef1f5;';
+    const h = document.createElement('div');
+    h.textContent = title;
+    h.style.cssText = 'font-size:10.5px;font-weight:700;color:var(--muted,#7a8a99);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;';
+    sec.appendChild(h);
+    const body = document.createElement('div');
+    body.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
+    sec.appendChild(body);
+    panel.appendChild(sec);
+    return {sectionEl: sec, body};
+  }
+
+  const jenisPeta = makeSection('Jenis Peta');
+  const lapisan = makeSection('Lapisan');
+  const alat = makeSection('Alat');
+  alat.sectionEl.style.borderBottom = 'none';
+
+  let open = false;
+  function setOpen(v){
+    open = v;
+    panel.style.display = open ? 'block' : 'none';
+    toggleBtn.style.borderColor = open ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
+  }
+  toggleBtn.addEventListener('click', (e)=>{ e.stopPropagation(); setOpen(!open); });
+  document.addEventListener('click', (e)=>{ if(open && !wrap.contains(e.target)) setOpen(false); });
+
+  document.getElementById(containerId).appendChild(wrap);
+  return { jenisPetaSection: jenisPeta.body, lapisanSection: lapisan.body, alatSection: alat.body };
+}
+
+function makeSwitchRow(label, initial, onChange){
+  const row = document.createElement('label');
+  row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;font-size:12.5px;color:var(--ink,#132437);padding:3px 0;';
+  const txt = document.createElement('span');
+  txt.textContent = label;
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = initial;
+  input.style.cssText = 'width:16px;height:16px;cursor:pointer;accent-color:var(--moss,#5c7a52);';
+  row.appendChild(txt);
+  row.appendChild(input);
+  input.addEventListener('click', (e)=> e.stopPropagation());
+  input.addEventListener('change', ()=> onChange(input.checked));
+  return row;
+}
+
+function makeMenuItemButton(icon, label){
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:none;background:none;padding:6px 4px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--ink,#132437);';
+  btn.innerHTML = `<span style="font-size:15px;">${icon}</span><span>${label}</span>`;
+  btn.addEventListener('mouseenter', ()=>{ btn.style.background = '#f1f5f8'; });
+  btn.addEventListener('mouseleave', ()=>{ btn.style.background = 'none'; });
+  return btn;
+}
+
+function addSatelliteToggle(map, containerId, targetPanel){
+  // targetPanel: elemen section menu "Lapisan Peta" (dipakai di 3 peta utama). Kalau tidak diberikan
+  // (mis. peta kecil di modal pemilih koordinat), buat panel kecil melayang sendiri seperti versi lama.
+  let panel = targetPanel;
+  let standalone = false;
+  if(!panel){
+    standalone = true;
+    panel = document.createElement('div');
+    panel.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:8px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px;display:flex;gap:6px;font-family:Arial,sans-serif;';
+    document.getElementById(containerId).appendChild(panel);
+  }
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;';
+  panel.appendChild(row);
 
   function makeOption(key, label, gradient){
     const opt = document.createElement('button');
     opt.type = 'button';
     opt.dataset.key = key;
-    opt.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:3px;border:2px solid transparent;border-radius:6px;background:none;padding:4px 8px 5px;cursor:pointer;';
+    opt.style.cssText = `display:flex;flex-direction:column;align-items:center;gap:3px;border:2px solid transparent;border-radius:6px;background:none;padding:4px 8px 5px;cursor:pointer;${standalone ? '' : 'flex:1;'}`;
     opt.innerHTML = `
-      <span style="width:34px;height:26px;border-radius:4px;display:block;background:${gradient};border:1px solid rgba(19,36,55,0.15);"></span>
+      <span style="width:${standalone ? '34px' : '100%'};height:${standalone ? '26px' : '30px'};border-radius:4px;display:block;background:${gradient};border:1px solid rgba(19,36,55,0.15);"></span>
       <span style="font-size:10.5px;font-weight:600;color:var(--ink,#132437);">${label}</span>
     `;
     return opt;
@@ -1194,9 +1279,8 @@ function addSatelliteToggle(map, containerId){
 
   const optDefault = makeOption('default', 'Default', 'linear-gradient(135deg,#bfe3c8 0%,#eef1c8 50%,#cfe3f5 100%)');
   const optSatellite = makeOption('satellite', 'Satelit', 'linear-gradient(135deg,#2b3a1f 0%,#4c5a33 45%,#7d8a5a 100%)');
-  panel.appendChild(optDefault);
-  panel.appendChild(optSatellite);
-  document.getElementById(containerId).appendChild(panel);
+  row.appendChild(optDefault);
+  row.appendChild(optSatellite);
 
   function setActive(key){
     [optDefault, optSatellite].forEach(el=>{
@@ -1206,8 +1290,8 @@ function addSatelliteToggle(map, containerId){
   }
   setActive('default');
 
-  optDefault.addEventListener('click', ()=>{ setBaseMapMode(map, 'default'); setActive('default'); });
-  optSatellite.addEventListener('click', ()=>{ setBaseMapMode(map, 'satellite'); setActive('satellite'); });
+  optDefault.addEventListener('click', (e)=>{ e.stopPropagation(); setBaseMapMode(map, 'default'); setActive('default'); });
+  optSatellite.addEventListener('click', (e)=>{ e.stopPropagation(); setBaseMapMode(map, 'satellite'); setActive('satellite'); });
 }
 
 function createMap(containerId, scrollZoom){
@@ -1232,23 +1316,34 @@ function createMap(containerId, scrollZoom){
     preserveDrawingBuffer: true // supaya tampilan peta bisa disimpan sebagai gambar (tombol 📷)
   });
   map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
-  map.addControl(new maplibregl.FullscreenControl(), 'top-left'); // bertumpuk otomatis di bawah tombol zoom, supaya tidak tabrakan dengan panel Default/Satelit di kanan atas
-  addSatelliteToggle(map, containerId);
-  addMeasureTool(map, containerId);
-  addLocateMeControl(map, containerId);
-  addMapSnapshotControl(map, containerId);
+  map.addControl(new maplibregl.FullscreenControl(), 'top-left'); // bertumpuk otomatis di bawah tombol zoom
+  // Satu panel "Lapisan Peta" (gaya Google Maps) menggabungkan semua kontrol: Jenis Peta (Default/
+  // Satelit), Lapisan (batas wilayah SLS, label nama), dan Alat (ukur jarak, lokasi saya, simpan gambar) —
+  // supaya peta tidak penuh tombol-tombol kecil terpisah.
+  const layersMenu = createLayersMenu(map, containerId);
+  addSatelliteToggle(map, containerId, layersMenu.jenisPetaSection);
+  addBoundaryToggle(map, containerId, layersMenu.lapisanSection);
+  addLabelToggle(map, containerId, layersMenu.lapisanSection);
+  addMeasureTool(map, containerId, layersMenu.alatSection);
+  addLocateMeControl(map, containerId, layersMenu.alatSection);
+  addMapSnapshotControl(map, containerId, layersMenu.alatSection);
   return map;
 }
 
 /* ---------- LOKASI SAYA (GPS) ---------- */
 /* ---------- SIMPAN TAMPILAN PETA SEBAGAI GAMBAR (untuk laporan/lampiran lapangan) ---------- */
-function addMapSnapshotControl(map, containerId){
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = '📷';
-  btn.title = 'Simpan tampilan peta ini sebagai gambar (PNG)';
-  btn.style.cssText = 'position:absolute;bottom:10px;right:52px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
-  document.getElementById(containerId).appendChild(btn);
+function addMapSnapshotControl(map, containerId, section){
+  const standalone = !section;
+  const btn = standalone ? document.createElement('button') : makeMenuItemButton('📷', 'Simpan Gambar Peta (PNG)');
+  if(standalone){
+    btn.type = 'button';
+    btn.innerHTML = '📷';
+    btn.title = 'Simpan tampilan peta ini sebagai gambar (PNG)';
+    btn.style.cssText = 'position:absolute;bottom:10px;right:52px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+    document.getElementById(containerId).appendChild(btn);
+  } else {
+    section.appendChild(btn);
+  }
   btn.addEventListener('click', (e)=>{
     e.stopPropagation();
     try {
@@ -1264,25 +1359,31 @@ function addMapSnapshotControl(map, containerId){
   });
 }
 
-function addLocateMeControl(map, containerId, options){
+function addLocateMeControl(map, containerId, section, options){
   options = options || {};
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = '🎯';
-  btn.title = 'Gunakan lokasi saya saat ini (GPS)';
-  btn.style.cssText = 'position:absolute;bottom:10px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
-  document.getElementById(containerId).appendChild(btn);
+  const standalone = !section;
+  const btn = standalone ? document.createElement('button') : makeMenuItemButton('🎯', 'Gunakan Lokasi Saya (GPS)');
+  if(standalone){
+    btn.type = 'button';
+    btn.innerHTML = '🎯';
+    btn.title = 'Gunakan lokasi saya saat ini (GPS)';
+    btn.style.cssText = 'position:absolute;bottom:10px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+    document.getElementById(containerId).appendChild(btn);
+  } else {
+    section.appendChild(btn);
+  }
 
   let locMarker = null;
+  const originalHtml = btn.innerHTML;
 
-  btn.addEventListener('click', ()=>{
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
     if(!navigator.geolocation){
       alert('Perangkat/browser ini tidak mendukung layanan lokasi (GPS).');
       return;
     }
     btn.disabled = true;
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '⏳';
+    btn.innerHTML = standalone ? '⏳' : (makeMenuItemButton('⏳', 'Mencari lokasi...').innerHTML);
     navigator.geolocation.getCurrentPosition(
       (pos)=>{
         btn.disabled = false;
@@ -1312,23 +1413,28 @@ function addLocateMeControl(map, containerId, options){
 }
 
 /* ---------- ALAT UKUR JARAK (klik dua titik di peta, pakai haversineKm) ---------- */
-function addMeasureTool(map, containerId){
+function addMeasureTool(map, containerId, section){
   const MEASURE_SRC = containerId + '-measure-line';
   const MEASURE_PTS = containerId + '-measure-points';
   let active = false;
   let points = []; // [{lat,lng}, ...] maksimal 2 titik
 
-  // Tombol toggle "Ukur Jarak"
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = '📏';
-  btn.title = 'Ukur jarak: klik tombol ini, lalu klik dua titik di peta';
-  btn.style.cssText = 'position:absolute;bottom:10px;left:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
-  document.getElementById(containerId).appendChild(btn);
+  // Tombol toggle "Ukur Jarak" — masuk ke menu "Lapisan Peta" (atau tombol melayang kalau section tidak diberikan)
+  const standalone = !section;
+  const btn = standalone ? document.createElement('button') : makeMenuItemButton('📏', 'Ukur Jarak');
+  if(standalone){
+    btn.type = 'button';
+    btn.innerHTML = '📏';
+    btn.title = 'Ukur jarak: klik tombol ini, lalu klik dua titik di peta';
+    btn.style.cssText = 'position:absolute;bottom:10px;left:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--line,#dbe3ec);background:var(--card-bg,#fff);box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
+    document.getElementById(containerId).appendChild(btn);
+  } else {
+    section.appendChild(btn);
+  }
 
-  // Kotak hasil jarak
+  // Kotak hasil jarak (tetap melayang di peta, supaya kelihatan sambil mengukur walau menu tertutup)
   const info = document.createElement('div');
-  info.style.cssText = 'position:absolute;bottom:10px;left:52px;z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:6px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px 10px;font-family:Arial,sans-serif;font-size:12px;color:var(--ink,#132437);display:none;white-space:nowrap;';
+  info.style.cssText = `position:absolute;bottom:10px;left:${standalone ? '52px' : '10px'};z-index:5;background:var(--card-bg,#fff);border:1px solid var(--line,#dbe3ec);border-radius:6px;box-shadow:0 1px 6px rgba(19,36,55,0.25);padding:6px 10px;font-family:Arial,sans-serif;font-size:12px;color:var(--ink,#132437);display:none;white-space:nowrap;`;
   document.getElementById(containerId).appendChild(info);
 
   function ensureLayer(){
@@ -1362,8 +1468,12 @@ function addMeasureTool(map, containerId){
 
   function setActive(on){
     active = on;
-    btn.style.borderColor = on ? 'var(--moss)' : 'var(--line,#dbe3ec)';
-    btn.style.background = on ? '#eef6fb' : 'var(--card-bg,#fff)';
+    if(standalone){
+      btn.style.borderColor = on ? 'var(--moss)' : 'var(--line,#dbe3ec)';
+      btn.style.background = on ? '#eef6fb' : 'var(--card-bg,#fff)';
+    } else {
+      btn.style.background = on ? '#eef6fb' : 'none';
+    }
     map.getCanvas().style.cursor = on ? 'crosshair' : '';
     if(!on){
       points = [];
@@ -1390,13 +1500,13 @@ function initMaps(){
   mapSls = createMap('slsMap', false);
   mapDesa = createMap('desaMap', false);
   mapPeta = createMap('petaMap', true);
+  // Catatan: addBoundaryToggle/addLabelToggle untuk tiap peta sudah dipanggil di dalam createMap()
+  // (lewat panel "Lapisan Peta"), jadi tidak perlu dipanggil lagi di sini.
   if(mapSls){
     // ensureSatelliteSource DULUAN (merekam daftar layer bawaan sebelum ada layer kustom apa pun).
     mapSls.on('load', ()=>ensureSatelliteSource(mapSls));
     mapSls.on('load', ()=>ensureBoundaryLayer(mapSls));
     mapSls.on('style.load', ()=>ensureBoundaryLayer(mapSls));
-    addBoundaryToggle(mapSls, 'slsMap');
-    addLabelToggle(mapSls, 'slsMap');
   }
   if(mapDesa){
     // Desa tidak punya file batas sendiri, tapi batas SLS-nya tetap dipasang di sini supaya bisa
@@ -1404,8 +1514,6 @@ function initMaps(){
     mapDesa.on('load', ()=>ensureSatelliteSource(mapDesa));
     mapDesa.on('load', ()=>ensureBoundaryLayer(mapDesa));
     mapDesa.on('style.load', ()=>ensureBoundaryLayer(mapDesa));
-    addBoundaryToggle(mapDesa, 'desaMap');
-    addLabelToggle(mapDesa, 'desaMap');
   }
   if(mapPeta){
     mapPeta.on('load', ()=>ensureSatelliteSource(mapPeta));
@@ -1414,8 +1522,6 @@ function initMaps(){
     mapPeta.on('load', ()=>ensureBoundaryLayer(mapPeta));
     mapPeta.on('style.load', ()=>ensureBoundaryLayer(mapPeta));
     addPetaLegend('petaMap');
-    addBoundaryToggle(mapPeta, 'petaMap');
-    addLabelToggle(mapPeta, 'petaMap');
   }
 }
 
@@ -1523,53 +1629,41 @@ function wireBoundaryClickPopup(map){
 }
 
 /* Tombol kecil di pojok peta untuk sembunyikan/tampilkan lapisan batas wilayah. */
-function addBoundaryToggle(map, containerId){
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = '🧭';
-  btn.title = 'Tampilkan/sembunyikan batas wilayah SLS';
-  btn.style.cssText = 'position:absolute;top:72px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:16px;line-height:1;';
-  document.getElementById(containerId).appendChild(btn);
+function addBoundaryToggle(map, containerId, section){
   slsBoundaryVisible[containerId] = true;
   function applyVisibility(){
     const visible = slsBoundaryVisible[containerId];
     ['sls-boundaries-fill','sls-boundaries-line'].forEach(id=>{
       if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
     });
-    btn.style.borderColor = visible ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
-    btn.style.background = visible ? '#eef6fb' : 'var(--card-bg,#fff)';
   }
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    slsBoundaryVisible[containerId] = !slsBoundaryVisible[containerId];
-    applyVisibility();
-  });
+  if(section){
+    const row = makeSwitchRow('Batas wilayah SLS', true, (checked)=>{
+      slsBoundaryVisible[containerId] = checked;
+      applyVisibility();
+    });
+    section.appendChild(row);
+  }
   map._applyBoundaryVisibility = applyVisibility;
 }
 
-/* Tombol terpisah untuk sembunyikan/tampilkan LABEL nama SLS saja (garis batas tetap ada) —
-   berguna di area padat (banyak Dusun/Lingkungan berdekatan) supaya tulisan tidak bikin ramai,
-   sementara garis batas wilayahnya sendiri tetap bisa dilihat. */
+/* Sembunyikan/tampilkan LABEL nama SLS saja (garis batas tetap ada) — berguna di area padat
+   (banyak Dusun/Lingkungan berdekatan) supaya tulisan tidak bikin ramai, sementara garis batas
+   wilayahnya sendiri tetap bisa dilihat. */
 let slsLabelVisible = {};
-function addLabelToggle(map, containerId){
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = 'Aa';
-  btn.title = 'Tampilkan/sembunyikan label nama SLS';
-  btn.style.cssText = 'position:absolute;top:116px;right:10px;z-index:5;width:34px;height:34px;border-radius:6px;border:1px solid var(--moss,#5c7a52);background:#eef6fb;box-shadow:0 1px 6px rgba(19,36,55,0.25);cursor:pointer;font-size:12.5px;font-weight:700;line-height:1;color:var(--ink,#132437);';
-  document.getElementById(containerId).appendChild(btn);
+function addLabelToggle(map, containerId, section){
   slsLabelVisible[containerId] = true;
   function applyVisibility(){
     const visible = slsLabelVisible[containerId];
     if(map.getLayer('sls-boundaries-label')) map.setLayoutProperty('sls-boundaries-label', 'visibility', visible ? 'visible' : 'none');
-    btn.style.borderColor = visible ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
-    btn.style.background = visible ? '#eef6fb' : 'var(--card-bg,#fff)';
   }
-  btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    slsLabelVisible[containerId] = !slsLabelVisible[containerId];
-    applyVisibility();
-  });
+  if(section){
+    const row = makeSwitchRow('Label nama SLS', true, (checked)=>{
+      slsLabelVisible[containerId] = checked;
+      applyVisibility();
+    });
+    section.appendChild(row);
+  }
   map._applyLabelVisibility = applyVisibility;
 }
 
@@ -1703,9 +1797,8 @@ function addPetaLegend(containerId){
     <div class="map-legend-item"><span class="map-legend-dot" style="background:#2ea8e0;"></span>Dusun/SLS</div>
     <div class="map-legend-item"><span class="map-legend-dot" style="background:#e08b1d;"></span>Desa/Kelurahan</div>
     <div class="map-legend-item"><span class="map-legend-dot map-legend-cluster">12</span>Klaster titik — klik untuk perbesar</div>
-    <div class="map-legend-item">🧭 Tombol di pojok kanan atas: sembunyikan/tampilkan batas wilayah SLS</div>
+    <div class="map-legend-item">🗺️ Tombol "Lapisan Peta" (kanan atas): ganti Default/Satelit, sembunyikan/tampilkan batas wilayah & label nama, ukur jarak, lokasi saya, simpan gambar — semua dalam satu menu</div>
     <div class="map-legend-item">⛶ Tombol layar penuh (kiri atas, di bawah +/-) untuk zoom lebih leluasa — klik langsung batas wilayah untuk lihat nama & kode</div>
-    <div class="map-legend-item">📷 Tombol di dekat 🎯 (kanan bawah): simpan tampilan peta saat ini sebagai gambar PNG</div>
   `;
   document.getElementById(containerId).appendChild(el);
 }
@@ -3114,7 +3207,7 @@ function ensureCoordPickerMap(){
     setCoordPickerPosition(e.lngLat.lat, e.lngLat.lng);
   });
   addSatelliteToggle(coordPickerMapInst, 'coordPickerMap');
-  addLocateMeControl(coordPickerMapInst, 'coordPickerMap', {
+  addLocateMeControl(coordPickerMapInst, 'coordPickerMap', null, {
     onLocate: (lat, lng) => setCoordPickerPosition(lat, lng)
   });
 }
