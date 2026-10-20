@@ -6,11 +6,17 @@
  * dalam file index.html itu sendiri (karena datanya sudah tertanam langsung
  * di HTML, bukan diambil lewat request terpisah).
  *
- * PENTING kalau Anda mengganti/upload ulang index.html versi baru:
- *   naikkan angka CACHE_VERSION di bawah supaya browser pengguna mengambil
- *   ulang file yang sudah diperbarui, bukan memakai cache lama selamanya.
+ * CATATAN PENTING (v4): halaman utama (index.html) sekarang memakai strategi
+ * NETWORK-FIRST, bukan cache-first lagi. Jadi setiap kali index.html diganti
+ * di GitHub, pengguna yang online akan SELALU mendapat versi terbaru secara
+ * otomatis — tidak perlu lagi mengingat-ingat menaikkan CACHE_VERSION di
+ * bawah ini setiap upload. Cache hanya dipakai sebagai cadangan saat benar-
+ * benar offline (tidak ada koneksi sama sekali).
+ *
+ * Menaikkan CACHE_VERSION tetap berguna sesekali (misalnya kalau mengganti
+ * ikon/manifest), karena itu akan membersihkan cache lama yang menumpuk.
  */
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = 'sls-enrekang-' + CACHE_VERSION;
 
 // Berkas inti aplikasi (app shell) yang wajib tersedia offline.
@@ -63,6 +69,33 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const url = new URL(req.url);
+  const isHtmlDocument = req.mode === 'navigate'
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('/index.html')
+    || url.pathname.endsWith('.html');
+
+  if (isHtmlDocument) {
+    // NETWORK-FIRST untuk halaman utama: setiap update index.html langsung
+    // terlihat begitu pengguna online, tanpa jeda cache sama sekali.
+    // Cache lama dipakai HANYA kalau jaringan benar-benar tidak terjangkau.
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const resClone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Selain halaman utama (ikon, manifest, svg, geojson batas wilayah, dsb.):
+  // cache-first supaya tetap cepat & bisa offline, sambil tetap memperbarui
+  // cache di latar belakang untuk kunjungan berikutnya.
   event.respondWith(
     caches.match(req).then((cached) => {
       const networkFetch = fetch(req)
@@ -75,8 +108,6 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached); // offline & belum ada di cache -> gagal total, tidak apa
 
-      // Cache-first: kalau sudah ada di cache, tampilkan langsung (cepat + offline-ready),
-      // sambil tetap mengambil versi terbaru di latar belakang untuk kunjungan berikutnya.
       return cached || networkFetch;
     })
   );
