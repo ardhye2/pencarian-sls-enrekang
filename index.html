@@ -1098,20 +1098,44 @@ let petaSlsGeoJSON = {type:'FeatureCollection', features:[]};
 let petaDesaGeoJSON = {type:'FeatureCollection', features:[]};
 let petaLayersWired = false;
 const MAP_STYLE = 'https://tiles.openfreemap.org/styles/bright';
-// Style satelit (raster, gratis, tanpa API key) untuk dipakai saat mode "Satelit" diaktifkan.
-const SATELLITE_STYLE = {
-  version: 8,
-  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf', // dibutuhkan layer label batas SLS (teks) — pakai server font OpenFreeMap yang sama dengan peta Default
-  sources: {
-    'esri-satellite': {
-      type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-      tileSize: 256,
-      attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics'
+
+/* Pasang sumber+layer raster citra satelit (gratis, tanpa API key) LANGSUNG ke style yang sedang
+   berjalan — bukan lewat map.setStyle() mengganti seluruh style. Dengan begitu, toggle Default/Satelit
+   tidak pernah membongkar ulang peta, sehingga semua lapisan kustom (batas wilayah, klaster, dll.)
+   TIDAK PERNAH hilang/perlu dipasang ulang, dan beralih mode jadi instan tanpa flicker. */
+function ensureSatelliteSource(map){
+  if(!map || !map.isStyleLoaded() || map.getLayer('esri-satellite-layer')) return;
+  try {
+    // Simpan daftar layer bawaan style (sekali saja, sebelum ada layer tambahan apa pun) supaya nanti
+    // bisa disembunyikan/ditampilkan utuh saat toggle, tanpa ikut menyembunyikan layer kustom kita sendiri.
+    if(!map._baseLayerIds) map._baseLayerIds = map.getStyle().layers.map(l=>l.id);
+    if(!map.getSource('esri-satellite')){
+      map.addSource('esri-satellite', {
+        type: 'raster',
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tileSize: 256,
+        attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics'
+      });
     }
-  },
-  layers: [{ id: 'esri-satellite-layer', type: 'raster', source: 'esri-satellite', minzoom: 0, maxzoom: 19 }]
-};
+    map.addLayer(
+      { id:'esri-satellite-layer', type:'raster', source:'esri-satellite', minzoom:0, maxzoom:19, layout:{visibility:'none'} },
+      map._baseLayerIds[0] // taruh di paling bawah tumpukan, di bawah semua layer peta Default
+    );
+  } catch(e){
+    console.warn('Gagal memasang layer citra satelit:', e && e.message);
+  }
+}
+/* Tampilkan citra satelit (sembunyikan layer peta Default), atau sebaliknya. */
+function setBaseMapMode(map, mode){
+  if(!map || !map._baseLayerIds) return;
+  const showDefault = mode !== 'satellite';
+  map._baseLayerIds.forEach(id=>{
+    if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', showDefault ? 'visible' : 'none');
+  });
+  if(map.getLayer('esri-satellite-layer')){
+    map.setLayoutProperty('esri-satellite-layer', 'visibility', showDefault ? 'none' : 'visible');
+  }
+}
 
 function addSatelliteToggle(map, containerId){
   const panel = document.createElement('div');
@@ -1143,8 +1167,8 @@ function addSatelliteToggle(map, containerId){
   }
   setActive('default');
 
-  optDefault.addEventListener('click', ()=>{ map.setStyle(MAP_STYLE); setActive('default'); });
-  optSatellite.addEventListener('click', ()=>{ map.setStyle(SATELLITE_STYLE); setActive('satellite'); });
+  optDefault.addEventListener('click', ()=>{ setBaseMapMode(map, 'default'); setActive('default'); });
+  optSatellite.addEventListener('click', ()=>{ setBaseMapMode(map, 'satellite'); setActive('satellite'); });
 }
 
 function createMap(containerId, scrollZoom){
@@ -1285,8 +1309,9 @@ function addMeasureTool(map, containerId){
     const ptsSrc = map.getSource(MEASURE_PTS);
     if(ptsSrc) ptsSrc.setData({type:'FeatureCollection', features:points.map(p=>({type:'Feature', geometry:{type:'Point', coordinates:[p.lng,p.lat]}}))});
   }
-  // Style peta bisa diganti total (toggle Default/Satelit) yang menghapus source/layer custom —
-  // pasang ulang layer pengukuran begitu style baru selesai dimuat.
+  // Toggle Default/Satelit tidak lagi mengganti style total, tapi listener ini dibiarkan jaga-jaga
+  // kalau style peta pernah dimuat ulang karena sebab lain — pasang ulang layer pengukuran begitu
+  // style baru selesai dimuat.
   map.on('style.load', ()=>{ if(points.length) { ensureLayer(); syncData(); } });
 
   function updateInfo(){
@@ -1327,6 +1352,8 @@ function initMaps(){
   mapDesa = createMap('desaMap', false);
   mapPeta = createMap('petaMap', true);
   if(mapSls){
+    // ensureSatelliteSource DULUAN (merekam daftar layer bawaan sebelum ada layer kustom apa pun).
+    mapSls.on('load', ()=>ensureSatelliteSource(mapSls));
     mapSls.on('load', ()=>ensureBoundaryLayer(mapSls));
     mapSls.on('style.load', ()=>ensureBoundaryLayer(mapSls));
     addBoundaryToggle(mapSls, 'slsMap');
@@ -1334,11 +1361,13 @@ function initMaps(){
   if(mapDesa){
     // Desa tidak punya file batas sendiri, tapi batas SLS-nya tetap dipasang di sini supaya bisa
     // disorot gabungan ("union") saat baris Desa diklik (lihat focusRowOnMap).
+    mapDesa.on('load', ()=>ensureSatelliteSource(mapDesa));
     mapDesa.on('load', ()=>ensureBoundaryLayer(mapDesa));
     mapDesa.on('style.load', ()=>ensureBoundaryLayer(mapDesa));
     addBoundaryToggle(mapDesa, 'desaMap');
   }
   if(mapPeta){
+    mapPeta.on('load', ()=>ensureSatelliteSource(mapPeta));
     mapPeta.on('load', ensurePetaLayers);
     mapPeta.on('style.load', ensurePetaLayers);
     mapPeta.on('load', ()=>ensureBoundaryLayer(mapPeta));
@@ -1513,8 +1542,9 @@ function findSlsBoundaryFeaturesForDesa(kdkec, kddesa){
   });
 }
 
-/* Pasang sumber data + layer cluster untuk Peta Sebaran (dipanggil ulang tiap style peta berganti,
-   mis. saat toggle Default/Satelit, karena setStyle() membuang semua source/layer kustom). */
+/* Pasang sumber data + layer cluster untuk Peta Sebaran. Toggle Default/Satelit TIDAK lagi memicu ini
+   (lihat ensureSatelliteSource/setBaseMapMode) — listener 'style.load' di sini hanya jaga-jaga kalau
+   style peta pernah dimuat ulang karena sebab lain. */
 function ensurePetaLayers(){
   if(!mapPeta || !mapPeta.isStyleLoaded()) return;
   if(!mapPeta.getSource('peta-sls')){
