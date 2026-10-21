@@ -188,7 +188,7 @@
   .count-line b{color:var(--moss-dark);}
   .action-row{display:flex;gap:8px;flex-wrap:wrap;}
 
-  .table-scroll{overflow-x:auto;overflow-y:auto;max-height:520px;border:1px solid var(--line);border-radius:10px;background:var(--card-bg);}
+  .table-scroll{overflow-x:auto;overflow-y:auto;max-height:340px;border:1px solid var(--line);border-radius:10px;background:var(--card-bg);}
   table{border-collapse:collapse;width:100%;min-width:1000px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;}
   thead th{background:linear-gradient(180deg, var(--moss) 0%, var(--moss-dark) 100%);color:var(--on-dark);text-align:left;padding:9px 8px;position:sticky;top:0;font-weight:600;white-space:nowrap;border-right:1px solid rgba(255,255,255,0.12);z-index:2;cursor:pointer;user-select:none;}
   thead th:hover{background:var(--moss);}
@@ -292,7 +292,8 @@
   @keyframes shimmer{0%{background-position:-200px 0;}100%{background-position:calc(200px + 100%) 0;}}
   .skeleton-row td{padding:10px 8px;}
   .skeleton-bar{height:12px;border-radius:4px;background:linear-gradient(90deg, var(--track-bg) 25%, var(--line) 50%, var(--track-bg) 75%);background-size:200px 100%;animation:shimmer 1.3s infinite linear;}
-  .leaflet-map{height:440px;width:100%;}
+  .leaflet-map{height:620px;width:100%;}
+  @media (max-width:640px){ .leaflet-map{height:420px;} }
 
   footer{margin-top:16px;font-family:Arial,sans-serif;font-size:11px;color:var(--muted);text-align:center;}
 
@@ -486,7 +487,7 @@
     </div>
     <div class="map-box">
       <div class="map-title">Peta Sebaran Seluruh Titik Geotagging &mdash; Kabupaten Enrekang</div>
-      <div class="leaflet-map" id="petaMap" style="height:560px;"></div>
+      <div class="leaflet-map" id="petaMap" style="height:650px;"></div>
     </div>
     <div class="count-line"><span id="petaCount"></span></div>
   </div>
@@ -1595,10 +1596,12 @@ function ensureBoundaryLayer(map){
             'symbol-placement':'point', 'text-allow-overlap':false, 'text-ignore-placement':false,
             // Geser teks sedikit ke bawah titik tengah SLS, supaya tidak langsung menimpa marker/titik
             // lokasi yang sering berada persis di koordinat yang sama.
-            'text-anchor':'top', 'text-offset':[0, 0.9],
-            // Prioritaskan label SLS yang sedang disorot (hasil klik/pencarian) supaya tidak kalah
-            // tertutup oleh label SLS tetangga saat posisinya berdekatan.
-            'symbol-sort-key':['case',['boolean',['feature-state','selected'],false], 0, 100]
+            'text-anchor':'top', 'text-offset':[0, 0.9]
+            // CATATAN: sempat dicoba menambah 'symbol-sort-key' berbasis feature-state supaya label
+            // yang sedang disorot diprioritaskan, TAPI MapLibre tidak mengizinkan feature-state dipakai
+            // di properti layout (hanya boleh di paint) — itu dulu bikin SELURUH layer label ini gagal
+            // dipasang (addLayer melempar error, tertangkap try/catch di bawah, label jadi tidak pernah
+            // muncul sama sekali). Sengaja tidak dipasang lagi supaya layer label ini tetap stabil.
           },
           paint:{ 'text-color':'#13324a', 'text-halo-color':'#ffffff', 'text-halo-width':1.4 } });
       } catch(labelErr){
