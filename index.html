@@ -715,6 +715,10 @@
         <li>Badge <b>🗺️✕ Belum ada batas</b> di tabel Cari Dusun/SLS menandai SLS/sub-SLS yang belum punya data poligon batas wilayah. Centang <b>"Hanya tampilkan yang belum ada batas wilayah"</b> di filter untuk menyaring daftar prioritas survei/digitasi.</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
       </ul>
+      <h4>🔔 Sinkron otomatis</h4>
+      <ul>
+        <li>Aplikasi mengecek ulang data dari Google Sheets setiap beberapa menit di latar belakang (dan setiap kali tab ini dibuka kembali). Kalau ada petugas lain yang mengubah data sementara Anda sedang melihat halaman ini, tabel akan <b>otomatis diperbarui</b> dan muncul notifikasi singkat "🔔 Data diperbarui oleh petugas lain" — tidak perlu refresh manual.</li>
+      </ul>
       <h4>📊 Rekap per Kecamatan</h4>
       <ul>
         <li>Grafik batang jumlah Desa/Kelurahan dan SLS per kecamatan, bisa diunduh sebagai gambar PNG lewat tombol <b>⬇ PNG</b> di tiap grafik.</li>
@@ -2748,8 +2752,24 @@ async function fetchSheetRows(sheetName){
   return res.json();
 }
 
+/* Tanda tangan ringan dari isi data SLS+Desa saat ini, dipakai untuk mendeteksi apakah ada perubahan
+   nyata sejak sinkron terakhir (dipakai oleh polling berkala di bawah) — tanpa membandingkan seluruh
+   objek yang berat, cukup sensitif terhadap tambah/hapus baris, perubahan koordinat, status verifikasi,
+   atau nama. */
+let lastDataSignature = null;
+function computeDataSignature(slsRows, desaRows){
+  let h = 0;
+  const feed = (s)=>{ for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) | 0; } };
+  feed(slsRows.length + '|' + desaRows.length);
+  slsRows.forEach(r=> feed(`${r.id}:${r.lat}:${r.lng}:${r.status_verifikasi}:${r.nmsls}|`));
+  desaRows.forEach(r=> feed(`${r.iddesa}:${r.lat}:${r.lng}:${r.status_verifikasi}:${r.nmdesa}|`));
+  return h;
+}
+
 let firstSyncDone = false;
-async function syncFromSheets(silent){
+// isBackgroundPoll = true: sinkron otomatis berkala (lihat setInterval di bawah), bukan klik tombol
+// Refresh manual — kalau datanya ternyata TIDAK berubah, diam saja (tidak perlu toast mengganggu).
+async function syncFromSheets(silent, isBackgroundPoll){
   if(!APPS_SCRIPT_URL){ setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); return; }
   if(isSyncing) return; // hindari sinkron dobel bertumpuk
   isSyncing = true;
@@ -2759,6 +2779,9 @@ async function syncFromSheets(silent){
   if(!silent) setSyncStatus('offline','🔄 Menyinkronkan data dari Google Sheets...');
   try {
     const [slsRows, desaRows] = await Promise.all([fetchSheetRows('sls'), fetchSheetRows('desa')]);
+    const newSignature = computeDataSignature(slsRows, desaRows);
+    const dataChanged = lastDataSignature !== null && newSignature !== lastDataSignature;
+    lastDataSignature = newSignature;
     SLS_DATA.length = 0;
     slsRows.forEach(r=>SLS_DATA.push({
       id:Number(r.id), nmsls:r.nmsls||'', nmkec:r.nmkec||'', kdkec:r.kdkec, nmdesa:r.nmdesa||'',
@@ -2777,7 +2800,12 @@ async function syncFromSheets(silent){
     renderStats(); renderSls(); renderDesa(); renderPeta();
     try { localStorage.setItem('lastSyncTimestamp', new Date().toISOString()); } catch(e){}
     setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')} (baru saja)`);
-    if(firstSyncDone) showToast('🟢 Data berhasil disinkron dari Google Sheets', 'success');
+    if(isBackgroundPoll){
+      // Sinkron otomatis diam-diam: hanya beri tahu kalau memang ada perubahan nyata dari petugas lain.
+      if(dataChanged) showToast('🔔 Data diperbarui oleh petugas lain — tabel ini sudah otomatis diperbarui.', 'success');
+    } else if(firstSyncDone){
+      showToast('🟢 Data berhasil disinkron dari Google Sheets', 'success');
+    }
   } catch(err){
     console.error(err);
     setSyncStatus('error', '🔴 Gagal menyinkronkan. Periksa URL Apps Script / izin akses, lalu coba lagi.');
@@ -3722,6 +3750,19 @@ renderPeta();
 // Placeholder belum diganti = anggap belum dikonfigurasi.
 if(APPS_SCRIPT_URL === 'PASTE_URL_WEB_APP_ANDA_DI_SINI') APPS_SCRIPT_URL = '';
 if(APPS_SCRIPT_URL){ syncFromSheets(true); } else { setSyncStatus('offline','⚪ Mode offline (data bawaan file)'); }
+
+/* ---------- SINKRON OTOMATIS BERKALA (notifikasi kalau petugas lain mengubah data) ----------
+   Supaya tidak perlu refresh manual untuk melihat perubahan dari petugas lain: cek ulang data dari
+   Google Sheets tiap beberapa menit di latar belakang. Kalau ternyata ada perubahan, tabel diperbarui
+   otomatis dan muncul notifikasi singkat. Dijeda saat tab sedang tidak aktif/di-minimize supaya tidak
+   boros kuota Apps Script, dan langsung sinkron sekali saat tab dibuka kembali. */
+const BACKGROUND_SYNC_INTERVAL_MS = 3 * 60 * 1000; // 3 menit
+setInterval(()=>{
+  if(APPS_SCRIPT_URL && !isSyncing && !document.hidden) syncFromSheets(true, true);
+}, BACKGROUND_SYNC_INTERVAL_MS);
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden && APPS_SCRIPT_URL && !isSyncing) syncFromSheets(true, true);
+});
 
 /* ---------- PWA: daftarkan service worker (agar bisa di-"Add to Home Screen" & dibuka offline) ---------- */
 if('serviceWorker' in navigator){
