@@ -1379,6 +1379,7 @@ function createMap(containerId, scrollZoom){
   addAdminBoundaryToggle(map, containerId, 'desa', 'Batas Desa/Kelurahan', layersMenu.lapisanSection);
   addAdminBoundaryToggle(map, containerId, 'kabupaten', 'Batas Kabupaten', layersMenu.lapisanSection);
   addKecamatanPointToggle(map, containerId, layersMenu.lapisanSection);
+  addDesaPointToggle(map, containerId, layersMenu.lapisanSection);
   addRoadToggle(map, containerId, layersMenu.lapisanSection);
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
@@ -1772,6 +1773,65 @@ function addKecamatanPointToggle(map, containerId, section){
     section.appendChild(row);
   }
   map._applyKecamatanPointVisibility = applyVisibility;
+}
+
+/* Titik Desa/Kelurahan (dari koordinat asli DESA_DATA, bukan perkiraan) — tersedia sebagai centang di
+   SEMUA peta (termasuk tab Cari Dusun/SLS), beda dengan centang "Tampilkan titik Desa/Kel" yang hanya
+   ada di tab Peta Sebaran dan hanya menampilkan hasil filter saat ini. Ini menampilkan SEMUA Desa. */
+function buildDesaPointLayerData(){
+  return {
+    type:'FeatureCollection',
+    features: DESA_DATA.filter(r=>r.lat!=null && r.lng!=null && !isNaN(r.lat) && !isNaN(r.lng)).map(r=>({
+      type:'Feature', geometry:{type:'Point', coordinates:[r.lng, r.lat]},
+      properties:{ nmdesa:r.nmdesa||'', nmkec:r.nmkec||'' }
+    }))
+  };
+}
+function ensureDesaPointLayer(map){
+  if(!map) return;
+  const data = buildDesaPointLayerData();
+  if(!data.features.length) return;
+  try {
+    if(!map.getStyle()){ setTimeout(()=>ensureDesaPointLayer(map), 300); return; }
+    if(!map.getSource('desa-points')){
+      map.addSource('desa-points', {type:'geojson', data});
+      map.addLayer({ id:'desa-points-circle', type:'circle', source:'desa-points',
+        layout:{ visibility:'none' },
+        paint:{ 'circle-radius':6, 'circle-color':'#e08b1d', 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+      try {
+        map.addLayer({ id:'desa-points-label', type:'symbol', source:'desa-points', minzoom:10.5,
+          layout:{ visibility:'none', 'text-field':['get','nmdesa'], 'text-font':['Noto Sans Regular'], 'text-size':10.5,
+            'text-offset':[0,1], 'text-anchor':'top' },
+          paint:{ 'text-color':'#7a4a12', 'text-halo-color':'#ffffff', 'text-halo-width':1.4 } });
+      } catch(labelErr){
+        console.warn('Label titik Desa tidak bisa ditampilkan di style peta ini:', labelErr && labelErr.message);
+      }
+    } else {
+      map.getSource('desa-points').setData(data);
+    }
+    if(map._applyDesaPointVisibility) map._applyDesaPointVisibility();
+  } catch(e){
+    console.warn('Gagal memasang titik Desa:', e && e.message);
+  }
+}
+let desaPointVisible = {};
+function addDesaPointToggle(map, containerId, section){
+  desaPointVisible[containerId] = false;
+  function applyVisibility(){
+    const visible = desaPointVisible[containerId];
+    ['desa-points-circle','desa-points-label'].forEach(id=>{
+      if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    });
+  }
+  if(section){
+    const row = makeSwitchRow('Titik Desa/Kelurahan', false, (checked)=>{
+      desaPointVisible[containerId] = checked;
+      if(checked && !(map.getSource && map.getSource('desa-points'))) ensureDesaPointLayer(map);
+      applyVisibility();
+    });
+    section.appendChild(row);
+  }
+  map._applyDesaPointVisibility = applyVisibility;
 }
 
 /* Centang tampilkan/sembunyikan JALAN dari peta dasar (OpenFreeMap) — dihitung lazy tiap kali
@@ -2990,6 +3050,9 @@ async function syncFromSheets(silent, isBackgroundPoll){
     rebuildFilterOptions();
     dupFlagsDirty = true;
     renderStats(); renderSls(); renderDesa(); renderPeta();
+    // Perbarui lapisan "Titik Desa/Kelurahan" (kalau sudah pernah dipasang di salah satu peta) supaya
+    // tetap mengikuti data Desa terbaru setelah sinkron.
+    [mapSls, mapDesa, mapPeta].forEach(m=>{ if(m && m.getSource && m.getSource('desa-points')) ensureDesaPointLayer(m); });
     try { localStorage.setItem('lastSyncTimestamp', new Date().toISOString()); } catch(e){}
     setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')} (baru saja)`);
     if(isBackgroundPoll){
