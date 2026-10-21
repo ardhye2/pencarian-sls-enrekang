@@ -1378,6 +1378,7 @@ function createMap(containerId, scrollZoom){
   addAdminBoundaryToggle(map, containerId, 'kecamatan', 'Batas Kecamatan', layersMenu.lapisanSection);
   addAdminBoundaryToggle(map, containerId, 'desa', 'Batas Desa/Kelurahan', layersMenu.lapisanSection);
   addAdminBoundaryToggle(map, containerId, 'kabupaten', 'Batas Kabupaten', layersMenu.lapisanSection);
+  addRoadToggle(map, containerId, layersMenu.lapisanSection);
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
   addMapSnapshotControl(map, containerId, layersMenu.alatSection);
@@ -1706,6 +1707,38 @@ function addAdminBoundaryToggle(map, containerId, level, label, section){
     section.appendChild(row);
   }
   map['_applyAdminBoundaryVisibility_'+level] = applyVisibility;
+}
+
+/* Centang tampilkan/sembunyikan JALAN dari peta dasar (OpenFreeMap) — dihitung lazy tiap kali
+   dibutuhkan (bukan cuma sekali di awal) dengan mencari layer bersumber "transportation" atau
+   bernama mengandung "road", supaya tetap akurat walau layer lain berubah seiring waktu. */
+function getRoadLayerIds(map){
+  try {
+    const layers = map.getStyle() && map.getStyle().layers;
+    if(!Array.isArray(layers)) return [];
+    return layers.filter(l=>{
+      const sl = l['source-layer'] || '';
+      return sl === 'transportation' || sl === 'transportation_name' || /road|highway|bridge|tunnel/i.test(l.id);
+    }).map(l=>l.id);
+  } catch(e){ return []; }
+}
+let roadLayersVisible = {};
+function addRoadToggle(map, containerId, section){
+  roadLayersVisible[containerId] = true; // default nyala, sama seperti tampilan peta dasar biasanya
+  function applyVisibility(){
+    const visible = roadLayersVisible[containerId];
+    getRoadLayerIds(map).forEach(id=>{
+      if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    });
+  }
+  if(section){
+    const row = makeSwitchRow('Jalan (dari peta dasar)', true, (checked)=>{
+      roadLayersVisible[containerId] = checked;
+      applyVisibility();
+    });
+    section.appendChild(row);
+  }
+  map._applyRoadVisibility = applyVisibility;
 }
 
 /* Pasang source+layer poligon batas SLS ke sebuah peta (dipanggil ulang tiap style peta berganti). */
