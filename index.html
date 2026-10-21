@@ -1378,6 +1378,7 @@ function createMap(containerId, scrollZoom){
   addAdminBoundaryToggle(map, containerId, 'kecamatan', 'Batas Kecamatan', layersMenu.lapisanSection);
   addAdminBoundaryToggle(map, containerId, 'desa', 'Batas Desa/Kelurahan', layersMenu.lapisanSection);
   addAdminBoundaryToggle(map, containerId, 'kabupaten', 'Batas Kabupaten', layersMenu.lapisanSection);
+  addKecamatanPointToggle(map, containerId, layersMenu.lapisanSection);
   addRoadToggle(map, containerId, layersMenu.lapisanSection);
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
@@ -1617,6 +1618,7 @@ function ensureSlsBoundaries(){
         [mapSls, mapDesa, mapPeta].forEach(m=>{
           if(!m) return;
           ['kecamatan','desa','kabupaten'].forEach(level=> ensureAdminBoundaryLayer(m, level));
+          ensureKecamatanPointLayer(m);
         });
       });
     } catch(e){
@@ -1632,7 +1634,7 @@ function ensureSlsBoundaries(){
    Kita tidak punya file batas resmi untuk level ini, jadi digabung (dissolve) dari poligon SLS yang
    sudah ada memakai Turf.js. Hasilnya cukup akurat selama data SLS-nya lengkap; SLS yang belum punya
    poligon (lihat badge 🗺️✕ di tabel) akan membuat "lubang" kecil di batas Desa/Kecamatan sekitarnya. */
-let adminBoundaryLayers = { kabupaten: null, kecamatan: null, desa: null };
+let adminBoundaryLayers = { kabupaten: null, kecamatan: null, desa: null, kecamatanCentroids: null };
 let adminBoundaryComputePromise = null;
 function computeAdminBoundaries(){
   if(adminBoundaryComputePromise) return adminBoundaryComputePromise;
@@ -1658,6 +1660,22 @@ function computeAdminBoundaries(){
       adminBoundaryLayers.kabupaten = turf.dissolve(withKeys, {propertyName:'_kab'});
       adminBoundaryLayers.kecamatan = turf.dissolve(withKeys, {propertyName:'_kec'});
       adminBoundaryLayers.desa = turf.dissolve(withKeys, {propertyName:'_desa'});
+
+      // Titik tengah (centroid) tiap Kecamatan, untuk simbol + label nama di peta (toggle terpisah).
+      const kecNameByCode = {};
+      slsBoundaryData.features.forEach(f=>{
+        const p = f.properties || {};
+        if(p.kdkec != null && !kecNameByCode[String(p.kdkec)]) kecNameByCode[String(p.kdkec)] = p.nmkec || ('Kec. ' + p.kdkec);
+      });
+      adminBoundaryLayers.kecamatanCentroids = {
+        type:'FeatureCollection',
+        features: (adminBoundaryLayers.kecamatan.features || []).map(f=>{
+          const c = turf.centroid(f);
+          const kode = f.properties && f.properties._kec;
+          c.properties = { kdkec: kode, nmkec: kecNameByCode[kode] || ('Kec. ' + kode) };
+          return c;
+        })
+      };
     } catch(e){
       console.warn('Gagal menghitung batas Kecamatan/Desa/Kabupaten otomatis:', e && e.message);
     }
@@ -1707,6 +1725,53 @@ function addAdminBoundaryToggle(map, containerId, level, label, section){
     section.appendChild(row);
   }
   map['_applyAdminBoundaryVisibility_'+level] = applyVisibility;
+}
+
+/* Simbol + label nama di titik tengah (centroid) tiap Kecamatan — dihitung otomatis dari batas
+   Kecamatan hasil dissolve di atas, bukan koordinat resmi, jadi posisinya perkiraan tengah wilayah. */
+function ensureKecamatanPointLayer(map){
+  const data = adminBoundaryLayers.kecamatanCentroids;
+  if(!map || !data) return;
+  try {
+    if(!map.getStyle()){ setTimeout(()=>ensureKecamatanPointLayer(map), 300); return; }
+    if(!map.getSource('kecamatan-points')){
+      map.addSource('kecamatan-points', {type:'geojson', data});
+      map.addLayer({ id:'kecamatan-points-circle', type:'circle', source:'kecamatan-points',
+        layout:{ visibility:'none' },
+        paint:{ 'circle-radius':7, 'circle-color':'#c0392b', 'circle-stroke-width':2, 'circle-stroke-color':'#ffffff' } });
+      try {
+        map.addLayer({ id:'kecamatan-points-label', type:'symbol', source:'kecamatan-points', minzoom:8,
+          layout:{ visibility:'none', 'text-field':['get','nmkec'], 'text-font':['Noto Sans Bold'], 'text-size':12.5,
+            'text-offset':[0,1.1], 'text-anchor':'top' },
+          paint:{ 'text-color':'#7a2015', 'text-halo-color':'#ffffff', 'text-halo-width':1.6 } });
+      } catch(labelErr){
+        console.warn('Label titik Kecamatan tidak bisa ditampilkan di style peta ini:', labelErr && labelErr.message);
+      }
+    } else {
+      map.getSource('kecamatan-points').setData(data);
+    }
+    if(map._applyKecamatanPointVisibility) map._applyKecamatanPointVisibility();
+  } catch(e){
+    console.warn('Gagal memasang titik Kecamatan:', e && e.message);
+  }
+}
+let kecamatanPointVisible = {};
+function addKecamatanPointToggle(map, containerId, section){
+  kecamatanPointVisible[containerId] = false; // default mati
+  function applyVisibility(){
+    const visible = kecamatanPointVisible[containerId];
+    ['kecamatan-points-circle','kecamatan-points-label'].forEach(id=>{
+      if(map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
+    });
+  }
+  if(section){
+    const row = makeSwitchRow('Titik pusat Kecamatan', false, (checked)=>{
+      kecamatanPointVisible[containerId] = checked;
+      applyVisibility();
+    });
+    section.appendChild(row);
+  }
+  map._applyKecamatanPointVisibility = applyVisibility;
 }
 
 /* Centang tampilkan/sembunyikan JALAN dari peta dasar (OpenFreeMap) — dihitung lazy tiap kali
