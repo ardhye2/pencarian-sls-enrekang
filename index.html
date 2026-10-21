@@ -371,6 +371,7 @@
         <select id="slsDesaFilter"><option value="">Semua Desa/Kelurahan</option></select>
         <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode &amp; koordinat)</label>
         <label class="toggle-label"><input type="checkbox" id="slsOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
+        <label class="toggle-label"><input type="checkbox" id="slsOnlyNoBoundary"> 🗺️ Hanya tampilkan yang belum ada batas wilayah</label>
         <button class="btn outline" id="slsResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
     </div>
@@ -710,6 +711,8 @@
         <li>Mengklik baris <b>Desa/Kelurahan</b> di tab Cari Koordinat per Desa akan menyorot gabungan semua batas SLS di dalam desa itu sekaligus (karena belum ada file batas Desa tersendiri), sehingga wilayah desanya tetap kelihatan.</li>
         <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
         <li>Tombol <b>⛶</b> (layar penuh, di bawah tombol +/- kiri atas) membesarkan tampilan peta ke seluruh layar, supaya lebih leluasa mencari dusun yang letaknya berdekatan — mirip tab Peta Wilayah Lengkap, tapi tetap interaktif (bisa klik untuk sorot & lihat nama).</li>
+        <li>Klik titik <b>kosong</b> di peta (bukan kena batas wilayah/titik) akan mencari & menampilkan SLS terdekat dari titik itu beserta jaraknya — berguna kalau tahu lokasinya di peta tapi lupa nama SLS-nya.</li>
+        <li>Badge <b>🗺️✕ Belum ada batas</b> di tabel Cari Dusun/SLS menandai SLS/sub-SLS yang belum punya data poligon batas wilayah. Centang <b>"Hanya tampilkan yang belum ada batas wilayah"</b> di filter untuk menyaring daftar prioritas survei/digitasi.</li>
         <li>Tombol 🌙/☀️ di pojok atas mengganti mode gelap/terang.</li>
       </ul>
       <h4>📊 Rekap per Kecamatan</h4>
@@ -951,6 +954,15 @@ function verifBadge(row, sheetName, idVal, namaItem){
     return ` <span class="pill verified" title="Titik ini sudah dicek dan dipastikan benar oleh Admin">✓ Terverifikasi</span>`;
   }
   return '';
+}
+
+/* Badge kecil kalau SLS/sub-SLS ini BELUM ada di file batas_sls.geojson (poligon batas wilayah) —
+   membantu petugas tahu mana yang perlu disurvei/didigitasi batasnya duluan. Diam (string kosong)
+   kalau datanya belum selesai dimuat, supaya tidak salah menandai saat baru buka halaman. */
+function noBoundaryBadge(row){
+  if(!slsBoundaryData) return '';
+  if(findSlsBoundaryFeature(row.kdkec, row.kddesa, row.kdsls, row.kdsubsls)) return '';
+  return ` <span class="pill" style="background:#f3e3c9;color:#8a5a1d;border:1px solid #e0b472;" title="Belum ada data batas wilayah (poligon) untuk SLS/sub-SLS ini">🗺️✕ Belum ada batas</span>`;
 }
 function haversineKm(lat1,lng1,lat2,lng2){
   if([lat1,lng1,lat2,lng2].some(v=>v==null||isNaN(v))) return 0;
@@ -1295,6 +1307,38 @@ function addSatelliteToggle(map, containerId, targetPanel){
   optSatellite.addEventListener('click', (e)=>{ e.stopPropagation(); setBaseMapMode(map, 'satellite'); setActive('satellite'); });
 }
 
+/* Klik di titik KOSONG di peta (bukan kena batas wilayah/titik/klaster) -> cari & tampilkan SLS
+   terdekat dari titik itu, berguna kalau tahu lokasinya di peta tapi lupa/tidak tahu nama SLS-nya. */
+function wireNearestSlsFallbackClick(map){
+  map.on('click', (e)=>{
+    if(map._measureActive) return; // sedang dipakai alat Ukur Jarak, jangan ganggu
+    const candidateLayers = ['sls-boundaries-fill','peta-sls-point','peta-sls-clusters','peta-desa-point','peta-desa-clusters','esri-satellite-layer']
+      .filter(id => { try { return !!map.getLayer(id); } catch(e2){ return false; } });
+    if(candidateLayers.length){
+      try {
+        const feats = map.queryRenderedFeatures(e.point, {layers: candidateLayers.filter(id=>id!=='esri-satellite-layer')});
+        if(feats && feats.length) return; // klik kena fitur lain, biarkan popup masing-masing yang tampil
+      } catch(e2){ /* abaikan, lanjut cari SLS terdekat */ }
+    }
+    let best = null, bestKm = Infinity;
+    for(const row of SLS_DATA){
+      if(row.lat==null || row.lng==null || isNaN(row.lat) || isNaN(row.lng)) continue;
+      const km = haversineKm(e.lngLat.lat, e.lngLat.lng, row.lat, row.lng);
+      if(km < bestKm){ bestKm = km; best = row; }
+    }
+    if(!best || bestKm > 5){
+      new maplibregl.Popup({offset:6}).setLngLat(e.lngLat)
+        .setHTML(`<div style="font-size:12px;color:#666;max-width:180px;">Tidak ada data SLS dalam radius 5 km dari titik ini.</div>`)
+        .addTo(map);
+      return;
+    }
+    const jarakTxt = bestKm < 1 ? Math.round(bestKm*1000)+' m' : bestKm.toFixed(1)+' km';
+    new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(
+      `<b>${best.nmsls}</b><br><span style="color:#888;font-size:11.5px;">SLS terdekat, ~${jarakTxt} dari titik ini</span><br>${best.nmdesa}, Kec. ${best.nmkec}`
+    ).addTo(map);
+  });
+}
+
 function createMap(containerId, scrollZoom){
   if(typeof maplibregl === 'undefined'){
     const el = document.getElementById(containerId);
@@ -1328,6 +1372,7 @@ function createMap(containerId, scrollZoom){
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
   addMapSnapshotControl(map, containerId, layersMenu.alatSection);
+  wireNearestSlsFallbackClick(map);
   return map;
 }
 
@@ -1469,6 +1514,7 @@ function addMeasureTool(map, containerId, section){
 
   function setActive(on){
     active = on;
+    map._measureActive = on; // dicek oleh wireNearestSlsFallbackClick supaya tidak bentrok saat sedang mengukur
     if(standalone){
       btn.style.borderColor = on ? 'var(--moss)' : 'var(--line,#dbe3ec)';
       btn.style.background = on ? '#eef6fb' : 'var(--card-bg,#fff)';
@@ -1905,6 +1951,7 @@ const slsBody = document.getElementById('slsBody');
 const slsCount = document.getElementById('slsCount');
 const slsRingkas = document.getElementById('slsRingkas');
 const slsOnlyUnverified = document.getElementById('slsOnlyUnverified');
+const slsOnlyNoBoundary = document.getElementById('slsOnlyNoBoundary');
 const slsBreadcrumb = document.getElementById('slsBreadcrumb');
 const slsSort = {key:null, dir:'asc'};
 let slsFilteredCache = [];
@@ -1930,12 +1977,13 @@ try {
     slsRingkas.checked = !!savedSls.ringkas;
     document.getElementById('slsTable').classList.toggle('ringkas', slsRingkas.checked);
     slsOnlyUnverified.checked = !!savedSls.onlyUnverified;
+    slsOnlyNoBoundary.checked = !!savedSls.onlyNoBoundary;
   }
 } catch(e){}
 function saveSlsFilters(){
   try{ localStorage.setItem(SLS_FILTER_KEY, JSON.stringify({
     q: slsSearch.value, kec: slsKecFilter.value, desa: slsDesaFilter.value,
-    ringkas: slsRingkas.checked, onlyUnverified: slsOnlyUnverified.checked
+    ringkas: slsRingkas.checked, onlyUnverified: slsOnlyUnverified.checked, onlyNoBoundary: slsOnlyNoBoundary.checked
   })); }catch(e){}
 }
 
@@ -1977,6 +2025,7 @@ function renderSls(){
     if(kec && row.nmkec !== kec) return false;
     if(desa && row.nmdesa !== desa) return false;
     if(slsOnlyUnverified.checked && (row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return false;
+    if(slsOnlyNoBoundary.checked && slsBoundaryData && findSlsBoundaryFeature(row.kdkec,row.kddesa,row.kdsls,row.kdsubsls)) return false;
     if(!q) return true;
     const hay = [row.nmsls,row.nmkec,row.nmdesa,row.kdsls,row.kdsubsls,row.idsubsls,row.id].join(' ').toLowerCase();
     return hay.includes(q);
@@ -2007,7 +2056,7 @@ function renderSls(){
         <td>${highlight(row.nmdesa,q)}</td>
         <td class="col-code">${pad(row.kdsls,4)}</td>
         <td class="col-code">${pad(row.kdsubsls,2)}</td>
-        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button> <button class="action-btn staff-only" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmsls||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button> <button class="action-btn staff-only" type="button" title="Buat QR code titik ini untuk dicetak/ditempel di lokasi" onclick="openQrModal('sls',${row.id},'${(row.nmsls||'').replace(/'/g,"\\'")}')">📱 QR</button>${verifBadge(row,'sls',row.id,row.nmsls)}</td>
+        <td><span class="col-coord-text">${mapsLink(row.lat,row.lng)}</span> <button class="action-btn coord coord-editor" title="Perbarui titik koordinat lewat peta / cari lokasi / GPS" onclick="openSlsCoordEdit(${row.id})">📍 Update</button> <button class="action-btn staff-only" type="button" title="Lihat riwayat perubahan khusus item ini" onclick="openItemHistory('${(row.nmsls||'').replace(/'/g,"\\'")}')">🕒 Riwayat</button> <button class="action-btn staff-only" type="button" title="Buat QR code titik ini untuk dicetak/ditempel di lokasi" onclick="openQrModal('sls',${row.id},'${(row.nmsls||'').replace(/'/g,"\\'")}')">📱 QR</button>${verifBadge(row,'sls',row.id,row.nmsls)}${noBoundaryBadge(row)}</td>
         <td class="admin-only">
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
@@ -2029,6 +2078,10 @@ slsRingkas.addEventListener('change', ()=>{
   saveSlsFilters();
 });
 slsOnlyUnverified.addEventListener('change', renderSls);
+slsOnlyNoBoundary.addEventListener('change', renderSls);
+// Begitu data batas wilayah selesai dimuat di latar belakang, badge & filter "belum ada batas" perlu
+// dihitung ulang (sebelumnya semua dianggap "belum diketahui" karena slsBoundaryData masih null).
+ensureSlsBoundaries().then(()=>{ try{ renderSls(); } catch(e){} });
 document.getElementById('slsResetBtn').addEventListener('click', ()=>{
   slsSearch.value = '';
   slsKecFilter.value = '';
@@ -2037,6 +2090,7 @@ document.getElementById('slsResetBtn').addEventListener('click', ()=>{
   slsRingkas.checked = false;
   document.getElementById('slsTable').classList.remove('ringkas');
   slsOnlyUnverified.checked = false;
+  slsOnlyNoBoundary.checked = false;
   slsSort.key = null; slsSort.dir = 'asc';
   document.querySelectorAll('#slsTable thead th .arrow').forEach(a=>a.textContent='');
   renderSls();
@@ -2647,11 +2701,26 @@ setInterval(()=>{
 }, 30000);
 
 /* ---------- indikator koneksi perangkat (benar-benar offline di lapangan) ---------- */
+function formatLastSyncLabel(){
+  try {
+    const iso = localStorage.getItem('lastSyncTimestamp');
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    const sameDay = d.toDateString() === new Date().toDateString();
+    const tgl = sameDay ? 'hari ini' : d.toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'});
+    const jam = d.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+    return ` (data terakhir disinkron ${tgl} pukul ${jam})`;
+  } catch(e){ return ''; }
+}
 function updateDeviceConnectivity(){
   const isOffline = !navigator.onLine;
   document.body.classList.toggle('device-offline', isOffline);
+  const banner = document.getElementById('deviceOfflineBanner');
   if(isOffline){
-    setSyncStatus('device-offline', '📵 Perangkat sedang offline — menampilkan data tersimpan terakhir');
+    const lastSync = formatLastSyncLabel();
+    setSyncStatus('device-offline', '📵 Perangkat sedang offline — menampilkan data tersimpan terakhir' + lastSync);
+    if(banner) banner.textContent = '📵 Tidak ada koneksi internet — data yang ditampilkan adalah data tersimpan terakhir di perangkat ini' + lastSync;
   } else if(syncStatusEl.classList.contains('device-offline')){
     // koneksi baru saja kembali: coba sinkron ulang secara diam-diam
     if(APPS_SCRIPT_URL) syncFromSheets(true); else setSyncStatus('offline','⚪ Mode offline (data bawaan file)');
@@ -2706,6 +2775,7 @@ async function syncFromSheets(silent){
     rebuildFilterOptions();
     dupFlagsDirty = true;
     renderStats(); renderSls(); renderDesa(); renderPeta();
+    try { localStorage.setItem('lastSyncTimestamp', new Date().toISOString()); } catch(e){}
     setSyncStatus('online', `🟢 Tersambung ke Google Sheets — data terbaru pukul ${new Date().toLocaleTimeString('id-ID')} (baru saja)`);
     if(firstSyncDone) showToast('🟢 Data berhasil disinkron dari Google Sheets', 'success');
   } catch(err){
