@@ -1641,7 +1641,7 @@ function computeAdminBoundaries(){
       return;
     }
     try {
-      const withKeys = {
+      const withKeysRaw = {
         type:'FeatureCollection',
         features: slsBoundaryData.features.map(f=>{
           const p = f.properties || {};
@@ -1650,6 +1650,10 @@ function computeAdminBoundaries(){
           }};
         })
       };
+      // turf.dissolve cuma menerima fitur Polygon biasa, sedangkan sebagian poligon SLS dari QGIS
+      // ternyata berbentuk MultiPolygon (gabungan beberapa bagian) — "pecah" dulu jadi Polygon murni
+      // (properti ikut tersalin ke tiap bagian) sebelum digabung ulang per Kecamatan/Desa/Kabupaten.
+      const withKeys = turf.flatten(withKeysRaw);
       adminBoundaryLayers.kabupaten = turf.dissolve(withKeys, {propertyName:'_kab'});
       adminBoundaryLayers.kecamatan = turf.dissolve(withKeys, {propertyName:'_kec'});
       adminBoundaryLayers.desa = turf.dissolve(withKeys, {propertyName:'_desa'});
