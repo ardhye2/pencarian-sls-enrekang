@@ -709,6 +709,8 @@
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
         <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Lewat menu <b>🗺️ Lapisan Peta</b>, lapisan batas wilayah ini bisa disembunyikan/ditampilkan kapan saja.</li>
         <li>Menu <b>🗺️ Lapisan Peta</b> juga punya centang terpisah untuk <b>Batas Kecamatan</b>, <b>Batas Desa/Kelurahan</b>, dan <b>Batas Kabupaten</b> — garis batas level-level ini dihitung otomatis dengan menggabungkan poligon SLS yang sudah ada (bukan file batas resmi tersendiri), jadi bisa ada sedikit "lubang" di bagian yang SLS-nya belum punya data poligon.</li>
+        <li>Di bagian <b>Alat</b> pada menu <b>🗺️ Lapisan Peta</b> ada <b>🖼️ Unduh peta per Kecamatan (PNG)</b> — pilih nama Kecamatan dari daftarnya lalu klik ⬇️, peta otomatis diperbesar pas ke wilayah itu lalu gambarnya langsung terunduh. Untuk Dusun/SLS atau Desa/Kelurahan, klik dulu barisnya di tabel (peta otomatis zoom ke sana), baru pakai tombol <b>📷 Simpan Gambar Peta</b> yang sudah ada.</li>
+        <li>Tombol <b>🗂️ Unduh Peta Seluruh Kabupaten (PNG)</b> (masih di bagian Alat) langsung menghasilkan satu gambar peta seluruh Kabupaten Enrekang lengkap dengan batas SLS, batas Desa, batas Kecamatan, batas Kabupaten, serta titik & nama tiap Kecamatan — semuanya dinyalakan otomatis sesaat untuk keperluan gambar ini, lalu pengaturan centang yang sedang dipakai dikembalikan lagi seperti semula setelah gambarnya terunduh.</li>
         <li>Tepat di bawah centang <b>Batas Kecamatan</b> ada centang <b>🎨 Warna beda tiap Kecamatan</b> — kalau dinyalakan, tiap wilayah Kecamatan diwarnai berbeda-beda (mirip peta administratif berwarna) supaya batasnya langsung kelihatan sekilas tanpa perlu zoom ke garisnya, lengkap dengan <b>legenda nama Kecamatan</b> di pojok kanan bawah peta dan <b>slider transparansi</b> warnanya. Klik area warnanya untuk melihat nama Kecamatan beserta ringkasan jumlah SLS yang sudah/belum diverifikasi dan sudah/belum ada batas wilayahnya.</li>
         <li>Mengklik baris <b>Desa/Kelurahan</b> di tab Cari Koordinat per Desa akan menyorot gabungan semua batas SLS di dalam desa itu sekaligus (karena belum ada file batas Desa tersendiri), sehingga wilayah desanya tetap kelihatan.</li>
         <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
@@ -1394,6 +1396,8 @@ function createMap(containerId, scrollZoom){
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
   addMapSnapshotControl(map, containerId, layersMenu.alatSection);
+  addKecamatanSnapshotTool(map, containerId, layersMenu.alatSection);
+  addKabupatenSnapshotTool(map, containerId, layersMenu.alatSection);
   wireNearestSlsFallbackClick(map);
   return map;
 }
@@ -1423,6 +1427,159 @@ function addMapSnapshotControl(map, containerId, section){
     } catch(err){
       console.error(err);
       alert('Gagal menyimpan gambar peta. Coba lagi setelah peta selesai dimuat sepenuhnya, atau pastikan peta sedang tidak dalam mode layar penuh.');
+    }
+  });
+}
+
+/* Unduh gambar (PNG) peta yang sudah di-"zoom pas" ke satu Kecamatan tertentu — jadi tiap Kecamatan
+   bisa diunduh terpisah (mirip "Simpan Gambar Peta" tapi otomatis memperbesar ke wilayah pilihan dulu).
+   Untuk SLS/Desa, zoom-per-wilayah sudah ada lewat klik baris di tabel; tombol "Simpan Gambar Peta"
+   yang sudah ada tinggal dipakai setelah itu — jadi di sini cukup dibuatkan untuk level Kecamatan saja,
+   yang sebelumnya belum punya cara memilih & memperbesar ke satu wilayah tertentu. */
+function addKecamatanSnapshotTool(map, containerId, section){
+  if(!section) return;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;padding:6px 2px 2px;';
+  const label = document.createElement('div');
+  label.textContent = '🖼️ Unduh peta per Kecamatan (PNG)';
+  label.style.cssText = 'font-size:12.5px;color:var(--ink,#132437);';
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:6px;';
+  const select = document.createElement('select');
+  select.style.cssText = 'flex:1 1 auto;min-width:0;font-size:12px;padding:5px 6px;border:1px solid var(--line,#dbe3ec);border-radius:6px;background:var(--card-bg,#fff);color:var(--ink,#132437);';
+  select.innerHTML = '<option value="">Memuat daftar Kecamatan…</option>';
+  const dlBtn = document.createElement('button');
+  dlBtn.type = 'button';
+  dlBtn.textContent = '⬇️';
+  dlBtn.title = 'Unduh gambar Kecamatan terpilih';
+  dlBtn.style.cssText = 'flex:0 0 auto;border:1px solid var(--line,#dbe3ec);border-radius:6px;background:var(--card-bg,#fff);cursor:pointer;padding:5px 9px;font-size:13px;';
+  [select, dlBtn].forEach(el=> el.addEventListener('click', (e)=> e.stopPropagation()));
+  row.appendChild(select); row.appendChild(dlBtn);
+  wrap.appendChild(label); wrap.appendChild(row);
+  section.appendChild(wrap);
+
+  function refreshOptions(){
+    const list = adminBoundaryLayers.kecamatanLegendList || [];
+    if(!list.length) return;
+    select.innerHTML = list.map(item => `<option value="${item.code}">${item.name}</option>`).join('');
+  }
+  map['_refreshKecamatanSnapshotOptions_' + containerId] = refreshOptions;
+  refreshOptions();
+
+  dlBtn.addEventListener('click', ()=>{
+    const code = select.value;
+    if(!code){ alert('Pilih Kecamatan dulu dari daftarnya.'); return; }
+    if(typeof turf === 'undefined' || !adminBoundaryLayers.kecamatan){
+      alert('Batas wilayah Kecamatan belum siap — tunggu sebentar lalu coba lagi.');
+      return;
+    }
+    const feature = (adminBoundaryLayers.kecamatan.features || []).find(f => String(f.properties && f.properties._kec) === String(code));
+    if(!feature){ alert('Batas wilayah untuk Kecamatan ini tidak ditemukan.'); return; }
+    const namaKec = select.options[select.selectedIndex].textContent;
+    try {
+      const bbox = turf.bbox(feature);
+      dlBtn.disabled = true; dlBtn.textContent = '…';
+      map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 30, duration: 0 });
+      map.once('idle', ()=>{
+        setTimeout(()=>{
+          try {
+            const dataUrl = map.getCanvas().toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            const slug = namaKec.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            a.download = `peta_kecamatan_${slug}.png`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          } catch(err){
+            console.error(err);
+            alert('Gagal menyimpan gambar peta Kecamatan ini. Coba lagi setelah peta selesai dimuat sepenuhnya.');
+          } finally {
+            dlBtn.disabled = false; dlBtn.textContent = '⬇️';
+          }
+        }, 200); // beri jeda sedikit supaya tile peta sempat selesai digambar setelah zoom
+      });
+    } catch(err){
+      console.error(err);
+      alert('Gagal memproses batas wilayah Kecamatan ini.');
+      dlBtn.disabled = false; dlBtn.textContent = '⬇️';
+    }
+  });
+}
+
+/* Unduh gambar (PNG) peta SELURUH Kabupaten sekaligus — otomatis menyalakan sementara semua lapisan
+   batas (SLS, Desa, Kecamatan, Kabupaten) + titik & nama Kecamatan, memperbesar pas ke seluruh wilayah
+   kabupaten, lalu mengembalikan lagi pengaturan centang semula setelah gambarnya terunduh (supaya
+   tidak mengubah tampilan yang sedang dipakai petugas). */
+function addKabupatenSnapshotTool(map, containerId, section){
+  if(!section) return;
+  const btn = makeMenuItemButton('🗂️', 'Unduh Peta Seluruh Kabupaten (PNG)');
+  section.appendChild(btn);
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(typeof turf === 'undefined' || !adminBoundaryLayers.kabupaten){
+      alert('Batas wilayah Kabupaten belum siap — tunggu sebentar lalu coba lagi.');
+      return;
+    }
+    const feature = (adminBoundaryLayers.kabupaten.features || [])[0];
+    if(!feature){ alert('Batas wilayah Kabupaten tidak ditemukan.'); return; }
+
+    // Simpan pengaturan centang yang sedang aktif, supaya bisa dikembalikan lagi setelah selesai.
+    const prev = {
+      sls: slsBoundaryVisible[containerId],
+      kec: adminBoundaryVisible[containerId + '|kecamatan'],
+      desa: adminBoundaryVisible[containerId + '|desa'],
+      kab: adminBoundaryVisible[containerId + '|kabupaten'],
+      kecPoint: kecamatanPointVisible[containerId]
+    };
+    // Nyalakan semua lapisan batas + titik/nama Kecamatan supaya gambarnya lengkap.
+    slsBoundaryVisible[containerId] = true;
+    adminBoundaryVisible[containerId + '|kecamatan'] = true;
+    adminBoundaryVisible[containerId + '|desa'] = true;
+    adminBoundaryVisible[containerId + '|kabupaten'] = true;
+    kecamatanPointVisible[containerId] = true;
+    if(map._applyBoundaryVisibility) map._applyBoundaryVisibility();
+    if(map._applyAdminBoundaryVisibility_kecamatan) map._applyAdminBoundaryVisibility_kecamatan();
+    if(map._applyAdminBoundaryVisibility_desa) map._applyAdminBoundaryVisibility_desa();
+    if(map._applyAdminBoundaryVisibility_kabupaten) map._applyAdminBoundaryVisibility_kabupaten();
+    if(map._applyKecamatanPointVisibility) map._applyKecamatanPointVisibility();
+
+    btn.disabled = true;
+    function restoreAndFinish(){
+      slsBoundaryVisible[containerId] = prev.sls;
+      adminBoundaryVisible[containerId + '|kecamatan'] = prev.kec;
+      adminBoundaryVisible[containerId + '|desa'] = prev.desa;
+      adminBoundaryVisible[containerId + '|kabupaten'] = prev.kab;
+      kecamatanPointVisible[containerId] = prev.kecPoint;
+      if(map._applyBoundaryVisibility) map._applyBoundaryVisibility();
+      if(map._applyAdminBoundaryVisibility_kecamatan) map._applyAdminBoundaryVisibility_kecamatan();
+      if(map._applyAdminBoundaryVisibility_desa) map._applyAdminBoundaryVisibility_desa();
+      if(map._applyAdminBoundaryVisibility_kabupaten) map._applyAdminBoundaryVisibility_kabupaten();
+      if(map._applyKecamatanPointVisibility) map._applyKecamatanPointVisibility();
+      btn.disabled = false;
+    }
+
+    try {
+      const bbox = turf.bbox(feature);
+      map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 30, duration: 0 });
+      map.once('idle', ()=>{
+        setTimeout(()=>{
+          try {
+            const dataUrl = map.getCanvas().toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = `peta_kabupaten_enrekang_${new Date().toISOString().slice(0,10)}.png`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          } catch(err){
+            console.error(err);
+            alert('Gagal menyimpan gambar peta Kabupaten. Coba lagi setelah peta selesai dimuat sepenuhnya.');
+          } finally {
+            restoreAndFinish();
+          }
+        }, 250); // SLS-nya 669 poligon sekaligus, kasih jeda lebih supaya sempat selesai digambar
+      });
+    } catch(err){
+      console.error(err);
+      alert('Gagal memproses batas wilayah Kabupaten.');
+      restoreAndFinish();
     }
   });
 }
@@ -1626,10 +1783,12 @@ function ensureSlsBoundaries(){
       // Batas Desa/Kecamatan/Kabupaten tidak punya file sendiri — dihitung otomatis dari gabungan
       // (dissolve) poligon-poligon SLS yang ada, di latar belakang, lalu dipasang ke semua peta.
       computeAdminBoundaries().then(()=>{
-        [mapSls, mapDesa, mapPeta].forEach(m=>{
+        [['slsMap',mapSls], ['desaMap',mapDesa], ['petaMap',mapPeta]].forEach(([cid, m])=>{
           if(!m) return;
           ['kecamatan','desa','kabupaten'].forEach(level=> ensureAdminBoundaryLayer(m, level));
           ensureKecamatanPointLayer(m);
+          const refreshFn = m['_refreshKecamatanSnapshotOptions_' + cid];
+          if(typeof refreshFn === 'function') refreshFn();
         });
       });
     } catch(e){
