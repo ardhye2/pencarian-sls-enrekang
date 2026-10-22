@@ -1805,13 +1805,20 @@ function wireKecamatanFillClickPopup(map){
     // Ringkasan progres data SLS di Kecamatan ini, supaya sekali klik langsung kelihatan
     // Kecamatan mana yang masih perlu diverifikasi/dilengkapi batas wilayahnya.
     const rowsKec = SLS_DATA.filter(r => String(r.kdkec) === String(kode));
-    const total = rowsKec.length;
+    // Jumlah SLS (dihitung dari kombinasi kdkec+kddesa+kdsls yang unik) vs jumlah Sub-SLS (tiap baris
+    // SLS_DATA memang sudah mewakili satu Sub-SLS). Pakai angka dari KEC_AGG (sama dengan tab Rekap
+    // Kecamatan) kalau namanya cocok, supaya angkanya konsisten di seluruh aplikasi.
+    const kecAggMatch = (typeof KEC_AGG !== 'undefined' && Array.isArray(KEC_AGG))
+      ? KEC_AGG.find(k => normalizeKecName(k.nmkec) === normalizeKecName(nm))
+      : null;
+    const jmlSls = kecAggMatch ? kecAggMatch.jml_sls : new Set(rowsKec.map(r => `${r.kdkec}-${r.kddesa}-${r.kdsls}`)).size;
+    const jmlSubSls = kecAggMatch ? kecAggMatch.jml_subsls : rowsKec.length;
     const belumVerif = rowsKec.filter(r => (r.status_verifikasi||'').toUpperCase() === 'BELUM DIVERIFIKASI').length;
     const belumBatas = rowsKec.filter(r => !findSlsBoundaryFeature(r.kdkec, r.kddesa, r.kdsls, r.kdsubsls)).length;
     new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(`
       <b>${nm}</b><br><span style="color:#888;font-size:11.5px;">Kecamatan</span>
       <div style="margin-top:6px;font-size:11.5px;line-height:1.7;">
-        🏘️ ${total} Dusun/SLS<br>
+        🏘️ ${jmlSls} SLS &nbsp;·&nbsp; 📍 ${jmlSubSls} Sub-SLS<br>
         ${belumVerif>0 ? `⏳ ${belumVerif} belum diverifikasi` : '✅ Semua sudah diverifikasi'}<br>
         ${belumBatas>0 ? `🗺️✕ ${belumBatas} belum ada batas wilayah` : '🗺️ Semua sudah ada batas wilayah'}
       </div>
