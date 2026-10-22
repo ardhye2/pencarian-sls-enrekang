@@ -1377,6 +1377,11 @@ function createMap(containerId, scrollZoom){
     center: [119.85, -3.5], // MapLibre pakai urutan [lng, lat]
     zoom: 9,
     scrollZoom: scrollZoom,
+    // Supaya scroll mouse di atas peta tidak "menangkap" scroll halaman — pengguna harus klik peta
+    // dulu lalu tahan Ctrl (atau pakai 2 jari di trackpad/HP) baru scroll-nya memperbesar/kecilkan
+    // peta; scroll biasa tetap menggulir halaman seperti biasa. Berlaku sama di semua peta, termasuk
+    // tab Cari Dusun/SLS dan Cari Koordinat per Desa, konsisten dengan Peta Sebaran.
+    cooperativeGestures: true,
     preserveDrawingBuffer: true // supaya tampilan peta bisa disimpan sebagai gambar (tombol 📷)
   });
   map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
@@ -1725,8 +1730,8 @@ function addMeasureTool(map, containerId, section){
 }
 
 function initMaps(){
-  mapSls = createMap('slsMap', false);
-  mapDesa = createMap('desaMap', false);
+  mapSls = createMap('slsMap', true);
+  mapDesa = createMap('desaMap', true);
   mapPeta = createMap('petaMap', true);
   // Catatan: addBoundaryToggle/addLabelToggle untuk tiap peta sudah dipanggil di dalam createMap()
   // (lewat panel "Lapisan Peta"), jadi tidak perlu dipanggil lagi di sini.
