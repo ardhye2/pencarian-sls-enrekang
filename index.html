@@ -1664,18 +1664,20 @@ function normalizeKecName(nm){
   return String(nm||'').toUpperCase().replace(/^KECAMATAN\s*/,'').replace(/^KEC\.?\s*/,'').trim();
 }
 const KECAMATAN_NAME_COLOR_OVERRIDES = {
-  'ENREKANG': '#9b7fc4',
-  'BAROKO': '#6fcf97',
-  'MASALLE': '#5fa8d9',
-  'ALLA': '#4fb8a8',
-  'CURIO': '#7fc7e8',
-  'MALUA': '#3f8fc4',
-  'BARAKA': '#52b788',
-  'BUNTU BATU': '#45a89a',
-  'ANGGERAJA': '#e8a87c',
-  'CENDANA': '#f0b86e',
-  'BUNGIN': '#f2cc8f',
-  'MAIWA': '#d9a86c'
+  'ENREKANG': '#9d5fc2',   // ungu/violet — digeser menjauh dari biru supaya tidak mirip Masalle/Curio
+  // Kelompok pegunungan: tiap kecamatan dapat warna hijau→biru yang jelas berbeda satu sama lain
+  'BAROKO': '#3fae6e',     // hijau
+  'ALLA': '#66c2a5',       // hijau-toska (beda terang dari Baroko & Buntu Batu)
+  'BUNTU BATU': '#1f9e8f', // toska tua
+  'BARAKA': '#4dafd9',     // biru langit
+  'CURIO': '#2f8fc9',      // biru sedang
+  'MASALLE': '#1f5fa8',    // biru tua — jelas "biru", beda dari Curio/Baraka
+  'MALUA': '#d9c9a0',      // krem
+  // Dataran rendah: rust, peach, sand, olive — dibedakan jelas, terutama Maiwa vs Cendana
+  'ANGGERAJA': '#c97b5a',  // terakota
+  'CENDANA': '#f0b86e',    // peach
+  'BUNGIN': '#f2cc8f',     // pasir (paling terang)
+  'MAIWA': '#b5944a'       // zaitun/mustard — sengaja dibuat beda jauh dari Cendana yang peach
 };
 let kecamatanColorByCode = {};
 function buildKecamatanColorExpression(){
@@ -1816,7 +1818,7 @@ function addKecamatanColorToggle(map, containerId, section){
     const row = makeSwitchRow('🎨 Warna beda tiap Kecamatan', false, (checked)=>{
       kecamatanColorVisible[containerId] = checked;
       applyVisibility();
-    }, 'linear-gradient(90deg,#9b7fc4,#5fa8d9,#6fcf97,#f2cc8f,#e8a87c)');
+    }, 'linear-gradient(90deg,#9d5fc2,#1f5fa8,#3fae6e,#d9c9a0,#c97b5a,#b5944a)');
     section.appendChild(row);
   }
   map._applyKecamatanColorVisibility = applyVisibility;
