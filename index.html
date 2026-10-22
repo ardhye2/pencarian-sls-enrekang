@@ -1655,6 +1655,28 @@ const ADMIN_BOUNDARY_COLORS = { kabupaten:'#7a2fb0', kecamatan:'#c0392b', desa:'
 // sesi ini). Kalau ingin warnanya persis sama dengan peta kabupaten yang sudah ada, unggah ulang file
 // SVG/gambar petanya supaya warnanya bisa disamakan per Kecamatan.
 const KECAMATAN_COLOR_PALETTE = ['#e6194B','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bfef45','#fabed4','#469990','#9A6324'];
+// Warna per nama Kecamatan dibuat menyerupai gaya peta administratif referensi: Kec. Enrekang (pusat
+// kabupaten) ungu lembut, kecamatan di dataran tinggi/pegunungan utara (Baroko, Masalle, Alla, Curio,
+// Malua, Baraka, Buntu Batu) nuansa biru-hijau, dan kecamatan dataran rendah nuansa hangat/pastel.
+// Nama dicocokkan tanpa awalan "KEC."/"KECAMATAN" dan tanpa peduli huruf besar-kecil, supaya tetap
+// kebaca walau format penulisan namanya sedikit beda di data.
+function normalizeKecName(nm){
+  return String(nm||'').toUpperCase().replace(/^KECAMATAN\s*/,'').replace(/^KEC\.?\s*/,'').trim();
+}
+const KECAMATAN_NAME_COLOR_OVERRIDES = {
+  'ENREKANG': '#9b7fc4',
+  'BAROKO': '#6fcf97',
+  'MASALLE': '#5fa8d9',
+  'ALLA': '#4fb8a8',
+  'CURIO': '#7fc7e8',
+  'MALUA': '#3f8fc4',
+  'BARAKA': '#52b788',
+  'BUNTU BATU': '#45a89a',
+  'ANGGERAJA': '#e8a87c',
+  'CENDANA': '#f0b86e',
+  'BUNGIN': '#f2cc8f',
+  'MAIWA': '#d9a86c'
+};
 let kecamatanColorByCode = {};
 function buildKecamatanColorExpression(){
   const codes = Object.keys(kecamatanColorByCode);
@@ -1706,7 +1728,10 @@ function computeAdminBoundaries(){
       });
       const sortedKecCodes = Object.keys(kecNameByCode).sort((a,b)=> (Number(a)-Number(b)) || a.localeCompare(b));
       kecamatanColorByCode = {};
-      sortedKecCodes.forEach((code, i)=>{ kecamatanColorByCode[code] = KECAMATAN_COLOR_PALETTE[i % KECAMATAN_COLOR_PALETTE.length]; });
+      sortedKecCodes.forEach((code, i)=>{
+        const nmKey = normalizeKecName(kecNameByCode[code]);
+        kecamatanColorByCode[code] = KECAMATAN_NAME_COLOR_OVERRIDES[nmKey] || KECAMATAN_COLOR_PALETTE[i % KECAMATAN_COLOR_PALETTE.length];
+      });
 
       adminBoundaryLayers.kecamatanCentroids = {
         type:'FeatureCollection',
@@ -1791,7 +1816,7 @@ function addKecamatanColorToggle(map, containerId, section){
     const row = makeSwitchRow('🎨 Warna beda tiap Kecamatan', false, (checked)=>{
       kecamatanColorVisible[containerId] = checked;
       applyVisibility();
-    }, 'linear-gradient(90deg,#e6194B,#3cb44b,#ffe119,#4363d8,#f58231,#911eb4)');
+    }, 'linear-gradient(90deg,#9b7fc4,#5fa8d9,#6fcf97,#f2cc8f,#e8a87c)');
     section.appendChild(row);
   }
   map._applyKecamatanColorVisibility = applyVisibility;
