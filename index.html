@@ -1673,11 +1673,12 @@ const KECAMATAN_NAME_COLOR_OVERRIDES = {
   'CURIO': '#2f8fc9',      // biru sedang
   'MASALLE': '#1f5fa8',    // biru tua — jelas "biru", beda dari Curio/Baraka
   'MALUA': '#d9c9a0',      // krem
-  // Dataran rendah: rust, peach, sand, olive — dibedakan jelas, terutama Maiwa vs Cendana
-  'ANGGERAJA': '#c97b5a',  // terakota
-  'CENDANA': '#f0b86e',    // peach
-  'BUNGIN': '#f2cc8f',     // pasir (paling terang)
-  'MAIWA': '#b5944a'       // zaitun/mustard — sengaja dibuat beda jauh dari Cendana yang peach
+  // Dataran rendah: tiap kecamatan digeser ke rona yang beda jauh (bukan cuma beda terang/gelap)
+  // supaya Bungin & Cendana tidak mirip dengan krem-nya Malua.
+  'ANGGERAJA': '#c97b5a',  // terakota (cokelat-merah)
+  'CENDANA': '#e8722e',    // oranye/jingga tegas
+  'BUNGIN': '#d9748a',     // merah muda tua (dusty rose) — jauh dari krem Malua
+  'MAIWA': '#8a9a46'       // hijau zaitun (bukan cokelat lagi) — sengaja beda jauh dari terakota Anggeraja
 };
 let kecamatanColorByCode = {};
 function buildKecamatanColorExpression(){
@@ -1885,7 +1886,7 @@ function addKecamatanColorToggle(map, containerId, section){
     const row = makeSwitchRow('🎨 Warna beda tiap Kecamatan', false, (checked)=>{
       kecamatanColorVisible[containerId] = checked;
       applyVisibility();
-    }, 'linear-gradient(90deg,#9d5fc2,#1f5fa8,#3fae6e,#d9c9a0,#c97b5a,#b5944a)');
+    }, 'linear-gradient(90deg,#9d5fc2,#1f5fa8,#3fae6e,#d9c9a0,#e8722e,#8a9a46)');
     section.appendChild(row);
     const opacityRow = makeOpacityRow('Transparansi', 38, (pct)=>{
       const fillId = 'admin-boundary-kecamatan-fill';
