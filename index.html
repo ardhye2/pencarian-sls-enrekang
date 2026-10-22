@@ -709,7 +709,7 @@
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
         <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Lewat menu <b>🗺️ Lapisan Peta</b>, lapisan batas wilayah ini bisa disembunyikan/ditampilkan kapan saja.</li>
         <li>Menu <b>🗺️ Lapisan Peta</b> juga punya centang terpisah untuk <b>Batas Kecamatan</b>, <b>Batas Desa/Kelurahan</b>, dan <b>Batas Kabupaten</b> — garis batas level-level ini dihitung otomatis dengan menggabungkan poligon SLS yang sudah ada (bukan file batas resmi tersendiri), jadi bisa ada sedikit "lubang" di bagian yang SLS-nya belum punya data poligon.</li>
-        <li>Tepat di bawah centang <b>Batas Kecamatan</b> ada centang <b>🎨 Warna beda tiap Kecamatan</b> — kalau dinyalakan, tiap wilayah Kecamatan diwarnai berbeda-beda (mirip peta administratif berwarna) supaya batasnya langsung kelihatan sekilas tanpa perlu zoom ke garisnya. Klik area warnanya untuk melihat nama Kecamatan.</li>
+        <li>Tepat di bawah centang <b>Batas Kecamatan</b> ada centang <b>🎨 Warna beda tiap Kecamatan</b> — kalau dinyalakan, tiap wilayah Kecamatan diwarnai berbeda-beda (mirip peta administratif berwarna) supaya batasnya langsung kelihatan sekilas tanpa perlu zoom ke garisnya, lengkap dengan <b>legenda nama Kecamatan</b> di pojok kanan bawah peta dan <b>slider transparansi</b> warnanya. Klik area warnanya untuk melihat nama Kecamatan beserta ringkasan jumlah SLS yang sudah/belum diverifikasi dan sudah/belum ada batas wilayahnya.</li>
         <li>Mengklik baris <b>Desa/Kelurahan</b> di tab Cari Koordinat per Desa akan menyorot gabungan semua batas SLS di dalam desa itu sekaligus (karena belum ada file batas Desa tersendiri), sehingga wilayah desanya tetap kelihatan.</li>
         <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
         <li>Tombol <b>⛶</b> (layar penuh, di bawah tombol +/- kiri atas) membesarkan tampilan peta ke seluruh layar, supaya lebih leluasa mencari dusun yang letaknya berdekatan — mirip tab Peta Wilayah Lengkap, tapi tetap interaktif (bisa klik untuk sorot & lihat nama).</li>
@@ -1734,6 +1734,10 @@ function computeAdminBoundaries(){
         const nmKey = normalizeKecName(kecNameByCode[code]);
         kecamatanColorByCode[code] = KECAMATAN_NAME_COLOR_OVERRIDES[nmKey] || KECAMATAN_COLOR_PALETTE[i % KECAMATAN_COLOR_PALETTE.length];
       });
+      // Daftar untuk legenda warna Kecamatan (diurutkan alfabetis supaya gampang dicari di panel).
+      adminBoundaryLayers.kecamatanLegendList = sortedKecCodes
+        .map(code => ({ code, name: kecNameByCode[code] || ('Kec. ' + code), color: kecamatanColorByCode[code] }))
+        .sort((a,b)=> a.name.localeCompare(b.name));
 
       adminBoundaryLayers.kecamatanCentroids = {
         type:'FeatureCollection',
@@ -1796,23 +1800,79 @@ function wireKecamatanFillClickPopup(map){
     if(map.getLayoutProperty(fillId, 'visibility') !== 'visible') return;
     const f = e.features && e.features[0];
     if(!f) return;
-    const nm = (f.properties && f.properties.nmkec) || ('Kec. ' + (f.properties && f.properties._kec));
-    new maplibregl.Popup({offset:6}).setLngLat(e.lngLat)
-      .setHTML(`<b>${nm}</b><br><span style="color:#888;font-size:11.5px;">Kecamatan</span>`)
-      .addTo(map);
+    const kode = f.properties && f.properties._kec;
+    const nm = (f.properties && f.properties.nmkec) || ('Kec. ' + kode);
+    // Ringkasan progres data SLS di Kecamatan ini, supaya sekali klik langsung kelihatan
+    // Kecamatan mana yang masih perlu diverifikasi/dilengkapi batas wilayahnya.
+    const rowsKec = SLS_DATA.filter(r => String(r.kdkec) === String(kode));
+    const total = rowsKec.length;
+    const belumVerif = rowsKec.filter(r => (r.status_verifikasi||'').toUpperCase() === 'BELUM DIVERIFIKASI').length;
+    const belumBatas = rowsKec.filter(r => !findSlsBoundaryFeature(r.kdkec, r.kddesa, r.kdsls, r.kdsubsls)).length;
+    new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(`
+      <b>${nm}</b><br><span style="color:#888;font-size:11.5px;">Kecamatan</span>
+      <div style="margin-top:6px;font-size:11.5px;line-height:1.7;">
+        🏘️ ${total} Dusun/SLS<br>
+        ${belumVerif>0 ? `⏳ ${belumVerif} belum diverifikasi` : '✅ Semua sudah diverifikasi'}<br>
+        ${belumBatas>0 ? `🗺️✕ ${belumBatas} belum ada batas wilayah` : '🗺️ Semua sudah ada batas wilayah'}
+      </div>
+    `).addTo(map);
   });
   map.on('mouseenter', fillId, ()=>{ map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', fillId, ()=>{ map.getCanvas().style.cursor = ''; });
 }
 
+/* Panel legenda kecil (pojok kanan bawah peta) yang mendaftar nama tiap Kecamatan beserta warnanya —
+   hanya tampil selagi centang "Warna beda tiap Kecamatan" dinyalakan. */
+function buildKecamatanLegendPanel(containerId){
+  const parent = document.getElementById(containerId);
+  if(!parent) return null;
+  const el = document.createElement('div');
+  el.className = 'map-legend';
+  el.style.cssText += 'right:10px;left:auto;bottom:10px;max-height:min(45vh,260px);overflow-y:auto;display:none;max-width:200px;';
+  parent.appendChild(el);
+  return el;
+}
+function renderKecamatanLegend(el){
+  const list = (adminBoundaryLayers.kecamatanLegendList) || [];
+  if(!list.length){ el.innerHTML = '<div style="font-size:11px;color:#888;">Memuat warna Kecamatan…</div>'; return; }
+  el.innerHTML = '<div style="font-weight:700;margin-bottom:4px;">Warna Kecamatan</div>' +
+    list.map(item => `<div class="map-legend-item"><span class="map-legend-dot" style="border-radius:3px;background:${item.color};"></span>${item.name}</div>`).join('');
+}
+
+/* Baris kecil berisi slider transparansi — dipakai untuk lapisan warna per-Kecamatan supaya
+   petugas bisa menyesuaikan sendiri ketebalan warnanya (lebih tegas untuk presentasi, lebih tipis
+   kalau dipakai bersamaan dengan lapisan lain). */
+function makeOpacityRow(label, initialPct, onChange){
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 4px 18px;font-size:11px;color:var(--muted,#7a8a99);';
+  const txt = document.createElement('span');
+  txt.textContent = label; txt.style.cssText = 'flex:0 0 auto;white-space:nowrap;';
+  const input = document.createElement('input');
+  input.type = 'range'; input.min = '10'; input.max = '80'; input.value = String(initialPct);
+  input.style.cssText = 'flex:1 1 auto;accent-color:var(--moss,#5c7a52);cursor:pointer;';
+  input.addEventListener('click', (e)=> e.stopPropagation());
+  input.addEventListener('input', ()=> onChange(Number(input.value)));
+  row.appendChild(txt); row.appendChild(input);
+  return row;
+}
+
 /* Centang on/off untuk lapisan warna beda tiap Kecamatan (choropleth sederhana), masuk ke menu
-   "Lapisan Peta" tepat di bawah centang Batas Kecamatan. */
+   "Lapisan Peta" tepat di bawah centang Batas Kecamatan — lengkap dengan legenda warna dan slider
+   transparansi. */
 let kecamatanColorVisible = {};
+let kecamatanLegendEls = {};
 function addKecamatanColorToggle(map, containerId, section){
   kecamatanColorVisible[containerId] = false;
   function applyVisibility(){
     const fillId = 'admin-boundary-kecamatan-fill';
-    if(map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', kecamatanColorVisible[containerId] ? 'visible' : 'none');
+    const visible = kecamatanColorVisible[containerId];
+    if(map.getLayer(fillId)) map.setLayoutProperty(fillId, 'visibility', visible ? 'visible' : 'none');
+    if(!kecamatanLegendEls[containerId]) kecamatanLegendEls[containerId] = buildKecamatanLegendPanel(containerId);
+    const legendEl = kecamatanLegendEls[containerId];
+    if(legendEl){
+      if(visible){ renderKecamatanLegend(legendEl); legendEl.style.display = 'block'; }
+      else legendEl.style.display = 'none';
+    }
   }
   if(section){
     const row = makeSwitchRow('🎨 Warna beda tiap Kecamatan', false, (checked)=>{
@@ -1820,6 +1880,11 @@ function addKecamatanColorToggle(map, containerId, section){
       applyVisibility();
     }, 'linear-gradient(90deg,#9d5fc2,#1f5fa8,#3fae6e,#d9c9a0,#c97b5a,#b5944a)');
     section.appendChild(row);
+    const opacityRow = makeOpacityRow('Transparansi', 38, (pct)=>{
+      const fillId = 'admin-boundary-kecamatan-fill';
+      if(map.getLayer(fillId)) map.setPaintProperty(fillId, 'fill-opacity', pct/100);
+    });
+    section.appendChild(opacityRow);
   }
   map._applyKecamatanColorVisibility = applyVisibility;
 }
