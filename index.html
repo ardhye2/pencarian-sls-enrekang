@@ -604,6 +604,7 @@
         <span style="font-weight:400;color:var(--muted);">— berdasarkan perangkat yang membuka halaman</span>
       </div>
       <div class="stats-row" id="kunjunganStatCards" style="margin:8px 0 10px;"></div>
+      <div id="kunjunganPeriodTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px;"></div>
       <div id="kunjunganTrendChart" style="padding:6px 2px 0;"></div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
         Dihitung dari perangkat (browser) yang membuka situs, dicatat maksimal sekali per 30 menit per perangkat agar tidak dobel saat reload. Alamat IP pengunjung tidak dapat diambil oleh sistem ini (dibatasi Google), jadi yang dihitung adalah perangkat, bukan IP.
@@ -708,6 +709,7 @@
         <li>Tombol <b>🗺️ Lapisan Peta</b> di pojok kanan atas membuka satu menu berisi semua pengaturan peta: ganti <b>Default/Satelit</b>, sembunyikan/tampilkan <b>batas wilayah SLS</b> & <b>label nama SLS</b>, <b>📏 Ukur Jarak</b> (klik 2 titik di peta), <b>🎯 Gunakan Lokasi Saya</b> (GPS), dan <b>📷 Simpan Gambar Peta</b> (PNG, untuk lampiran laporan lapangan).</li>
         <li>Di tab <b>Peta Sebaran</b>, titik-titik yang berdekatan dikelompokkan jadi lingkaran klaster (ada angkanya) — klik klaster untuk memperbesar otomatis. Legenda warna ada di pojok peta.</li>
         <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Lewat menu <b>🗺️ Lapisan Peta</b>, lapisan batas wilayah ini bisa disembunyikan/ditampilkan kapan saja.</li>
+        <li>Penandaan ini juga berlaku sebaliknya — <b>klik langsung garis batas SLS atau titik/marker-nya di peta</b> (tanpa harus lewat tabel dulu) akan ikut menyorotnya warna oranye sama seperti klik baris di tabel, dan kalau yang diklik ada di peta tab Dusun/SLS, baris tabelnya otomatis ikut disorot & di-scroll ke situ.</li>
         <li>Menu <b>🗺️ Lapisan Peta</b> juga punya centang terpisah untuk <b>Batas Kecamatan</b>, <b>Batas Desa/Kelurahan</b>, dan <b>Batas Kabupaten</b> — garis batas level-level ini dihitung otomatis dengan menggabungkan poligon SLS yang sudah ada (bukan file batas resmi tersendiri), jadi bisa ada sedikit "lubang" di bagian yang SLS-nya belum punya data poligon.</li>
         <li>Di bagian <b>Alat</b> pada menu <b>🗺️ Lapisan Peta</b> ada <b>🖼️ Unduh peta per Kecamatan (PNG)</b> — pilih nama Kecamatan dari daftarnya lalu klik ⬇️, peta otomatis diperbesar pas ke wilayah itu lalu gambarnya langsung terunduh. Untuk Dusun/SLS atau Desa/Kelurahan, klik dulu barisnya di tabel (peta otomatis zoom ke sana), baru pakai tombol <b>📷 Simpan Gambar Peta</b> yang sudah ada.</li>
         <li>Tombol <b>🗂️ Unduh Peta Seluruh Kabupaten (PNG)</b> (masih di bagian Alat) langsung menghasilkan satu gambar peta seluruh Kabupaten Enrekang lengkap dengan batas SLS, batas Desa, batas Kecamatan, batas Kabupaten, serta titik & nama tiap Kecamatan — semuanya dinyalakan otomatis sesaat untuk keperluan gambar ini, lalu pengaturan centang yang sedang dipakai dikembalikan lagi seperti semula setelah gambarnya terunduh.</li>
@@ -2275,6 +2277,13 @@ function wireBoundaryClickPopup(map){
     const html = `<b>${p.nmsls||'-'}</b>${subTxt}<br>${p.nmdesa||'-'}, Kec. ${p.nmkec||'-'}<br>` +
       `<span style="font-size:11px;color:#666;">Kode: ${p.kdkec}.${p.kddesa}.${p.kdsls}.${p.kdsubsls}</span>`;
     new maplibregl.Popup({offset:6}).setLngLat(e.lngLat).setHTML(html).addTo(map);
+    // Klik garis batas SLS langsung di peta -> ikut "ditandai" (oranye) sama seperti klik barisnya di
+    // tabel, dan kalau yang diklik memang peta tab SLS, baris tabelnya ikut disorot & di-scroll juga.
+    // "fitBounds:false" sengaja supaya peta tidak lompat/zoom lagi — pengguna sudah di situ posisinya.
+    const row = SLS_DATA.find(r =>
+      String(r.kdkec)===String(p.kdkec) && String(r.kddesa)===String(p.kddesa) &&
+      String(r.kdsls)===String(p.kdsls) && String(r.kdsubsls)===String(p.kdsubsls));
+    if(row) applySelectionByRow('sls', row.id, { map, scrollTable:true, fitBounds:false, scrollMapIntoView:false });
   });
   map.on('mouseenter', 'sls-boundaries-fill', ()=>{ map.getCanvas().style.cursor = 'pointer'; });
   map.on('mouseleave', 'sls-boundaries-fill', ()=>{ map.getCanvas().style.cursor = ''; });
@@ -2460,7 +2469,7 @@ function clearMarkers(arr){
   arr.length = 0;
 }
 
-function addMarker(map, arr, lat, lng, color, radiusPx, label, sub){
+function addMarker(map, arr, lat, lng, color, radiusPx, label, sub, kind, rowId){
   const el = document.createElement('div');
   el.style.width = radiusPx+'px';
   el.style.height = radiusPx+'px';
@@ -2474,6 +2483,11 @@ function addMarker(map, arr, lat, lng, color, radiusPx, label, sub){
     .setLngLat([lng, lat])
     .setPopup(new maplibregl.Popup({offset:12}).setHTML(popupHtml))
     .addTo(map);
+  // Klik marker-nya langsung di peta -> "ditandai" sama persis seperti klik barisnya di tabel
+  // (garis batas disorot oranye, baris tabel ikut disorot & di-scroll), bukan cuma buka popup saja.
+  if(kind && rowId != null){
+    el.addEventListener('click', ()=> applySelectionByRow(kind, rowId, {scrollTable:true}));
+  }
   arr.push(marker);
 }
 
@@ -2485,14 +2499,27 @@ function fitToPoints(map, points){
 }
 
 
-/* Klik baris tabel -> peta terbang ke titik yang sama & buka popup-nya */
+/* "Tandai" satu baris SLS/Desa di peta: sorot batas wilayahnya (oranye), besarkan+oranye-kan
+   marker-nya kalau ada, dan (opsional) ikut sorot+scroll baris tabelnya. Dipakai dari TIGA tempat
+   supaya hasilnya selalu sama persis:
+   1. Klik baris di tabel (lewat focusRowOnMap di bawah)
+   2. Klik marker/titik-nya langsung di peta (lewat addMarker)
+   3. Klik garis batas SLS langsung di peta (lewat wireBoundaryClickPopup) */
 let _focusedMarker = null;
-function focusRowOnMap(ev, tr, kind, lat, lng, rowId){
-  if(ev.target.closest('button, a, input, select, .verif-badge')) return; // jangan ganggu tombol/link di dalam baris
-  const map = kind==='sls' ? mapSls : mapDesa;
+function applySelectionByRow(kind, rowId, opts){
+  opts = opts || {};
+  const ownMap = kind==='sls' ? mapSls : mapDesa;
   const arr = kind==='sls' ? markersSls : markersDesa;
-  if(!map) return;
+  // opts.map: peta yang diklik (bisa beda dari "peta sendiri" di atas — misal klik poligon SLS di
+  // peta tab Desa/Peta Sebaran). Sorot batasnya di peta ITU, tapi sinkron tabel & marker tetap cuma
+  // berlaku kalau yang diklik memang peta tab aslinya sendiri (tabelnya cuma ada di satu tab).
+  const map = opts.map || ownMap;
+  if(!map || rowId == null) return;
+  const row = kind==='sls' ? SLS_DATA.find(r=>r.id===rowId) : DESA_DATA.find(r=>r.iddesa===rowId);
+  if(!row) return;
+  const lat = row.lat, lng = row.lng;
   const hasPoint = lat!=null && lng!=null && !isNaN(lat) && !isNaN(lng);
+  const isOwnMap = map === ownMap;
 
   // Kalau batas poligon SLS tersedia untuk baris ini, sorot & zoom pas ke batasnya — dicek DULUAN,
   // supaya tetap jalan walau titik koordinatnya sendiri belum terisi (NaN/kosong).
@@ -2500,33 +2527,37 @@ function focusRowOnMap(ev, tr, kind, lat, lng, rowId){
   // - Baris Desa -> gabungan SEMUA poligon SLS dalam desa itu (tidak ada file batas Desa terpisah,
   //   jadi "batas desa" didekati dari gabungan batas SLS-nya).
   let boundaryFeatures = [];
-  if(rowId != null && slsBoundaryData){
+  if(slsBoundaryData){
     if(kind === 'sls'){
-      const row = SLS_DATA.find(r=>r.id === rowId);
-      if(row){
-        const f = findSlsBoundaryFeature(row.kdkec, row.kddesa, row.kdsls, row.kdsubsls);
-        if(f) boundaryFeatures = [f];
-      }
-    } else if(kind === 'desa'){
-      const row = DESA_DATA.find(r=>r.iddesa === rowId);
-      if(row) boundaryFeatures = findSlsBoundaryFeaturesForDesa(row.kdkec, row.kddesa);
+      const f = findSlsBoundaryFeature(row.kdkec, row.kddesa, row.kdsls, row.kdsubsls);
+      if(f) boundaryFeatures = [f];
+    } else {
+      boundaryFeatures = findSlsBoundaryFeaturesForDesa(row.kdkec, row.kddesa);
     }
   }
   if(!hasPoint && boundaryFeatures.length === 0) return; // tidak ada titik maupun batas wilayah yang bisa disorot
 
-  const table = tr.closest('table');
-  table.querySelectorAll('tr.row-active').forEach(r=>r.classList.remove('row-active'));
-  tr.classList.add('row-active');
+  if(opts.syncTable !== false && isOwnMap){
+    const tbody = document.getElementById(kind==='sls' ? 'slsBody' : 'desaBody');
+    if(tbody){
+      tbody.querySelectorAll('tr.row-active').forEach(r=>r.classList.remove('row-active'));
+      const targetTr = tbody.querySelector(`tr[data-row-id="${rowId}"]`);
+      if(targetTr){
+        targetTr.classList.add('row-active');
+        if(opts.scrollTable) targetTr.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+    }
+  }
   if(_focusedMarker){ _focusedMarker.style.transform=''; _focusedMarker.style.zIndex=''; _focusedMarker.style.background='#2ea8e0'; }
-  const m = hasPoint ? arr.find(mk=>{ const ll = mk.getLngLat(); return Math.abs(ll.lat-lat)<1e-9 && Math.abs(ll.lng-lng)<1e-9; }) : null;
-  map.getContainer().closest('.map-box').scrollIntoView({behavior:'smooth', block:'nearest'});
+  const m = (isOwnMap && hasPoint) ? arr.find(mk=>{ const ll = mk.getLngLat(); return Math.abs(ll.lat-lat)<1e-9 && Math.abs(ll.lng-lng)<1e-9; }) : null;
+  if(opts.scrollMapIntoView) map.getContainer().closest('.map-box').scrollIntoView({behavior:'smooth', block:'nearest'});
 
   if(boundaryFeatures.length > 0){
     setBoundarySelection(map, map.getContainer().id, boundaryFeatures.map(f=>f.properties.gid));
-    map.fitBounds(bboxOfFeatures(boundaryFeatures), {padding:60, maxZoom:17, duration:600});
+    if(opts.fitBounds !== false) map.fitBounds(bboxOfFeatures(boundaryFeatures), {padding:60, maxZoom:17, duration:600});
   } else {
     setBoundarySelection(map, map.getContainer().id, []);
-    if(hasPoint) map.flyTo({center:[lng,lat], zoom:Math.max(map.getZoom(),15), essential:true});
+    if(hasPoint && opts.fitBounds !== false) map.flyTo({center:[lng,lat], zoom:Math.max(map.getZoom(),15), essential:true});
   }
   if(m){
     const el = m.getElement();
@@ -2538,11 +2569,17 @@ function focusRowOnMap(ev, tr, kind, lat, lng, rowId){
   }
 }
 
-function updateMap(markersArr, map, points, maxMarkers){
+/* Klik baris tabel -> peta terbang ke titik yang sama & buka popup-nya */
+function focusRowOnMap(ev, tr, kind, lat, lng, rowId){
+  if(ev.target.closest('button, a, input, select, .verif-badge')) return; // jangan ganggu tombol/link di dalam baris
+  applySelectionByRow(kind, rowId, { syncTable:true, scrollTable:false, scrollMapIntoView:true, fitBounds:true });
+}
+
+function updateMap(markersArr, map, points, maxMarkers, kind){
   if(!map) return;
   clearMarkers(markersArr);
   const pts = points.slice(0, maxMarkers).filter(p=>p.lat!=null && p.lng!=null && !isNaN(p.lat) && !isNaN(p.lng));
-  pts.forEach(p=>addMarker(map, markersArr, p.lat, p.lng, '#2ea8e0', 14, p.label, p.sub));
+  pts.forEach(p=>addMarker(map, markersArr, p.lat, p.lng, '#2ea8e0', 14, p.label, p.sub, kind, p.id));
   fitToPoints(map, pts);
 }
 
@@ -2650,7 +2687,7 @@ function renderSls(){
       </div></td></tr>`;
   } else {
     const rows = filtered.slice(0,500).map((row,i)=>`
-      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng},${row.id})">
+      <tr class="row-focusable" data-row-id="${row.id}" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng},${row.id})">
         <td class="no">${i+1}</td>
         <td>${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}</td>
         <td class="col-code">${pad(row.kdkec,3)}</td>
@@ -2669,7 +2706,7 @@ function renderSls(){
   }
   slsCount.innerHTML = `Menampilkan <b>${Math.min(filtered.length,500)}</b> dari <b>${filtered.length}</b> hasil (total data: <b>${SLS_DATA.length}</b>)${filtered.length>500?' — persempit pencarian untuk melihat semua':''}.`;
 
-  updateMap(markersSls, mapSls, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmsls,sub:`${r.nmdesa}, ${r.nmkec}`})), 500);
+  updateMap(markersSls, mapSls, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmsls,sub:`${r.nmdesa}, ${r.nmkec}`,id:r.id})), 500, 'sls');
   updateTabBadges();
   saveSlsFilters();
 }
@@ -2787,7 +2824,7 @@ function renderDesa(){
       </div></td></tr>`;
   } else {
     desaBody.innerHTML = filtered.map((row,i)=>`
-      <tr class="row-focusable" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'desa',${row.lat},${row.lng},${row.iddesa})">
+      <tr class="row-focusable" data-row-id="${row.iddesa}" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'desa',${row.lat},${row.lng},${row.iddesa})">
         <td class="no">${i+1}</td>
         <td>${highlight(row.nmdesa,q)}${dupNameBadge(desaDupFlags,row.iddesa)}</td>
         <td><span class="pill ${row.status_pem==='DESA'?'desa':'kel'}">${row.status_pem}</span></td>
@@ -2808,7 +2845,7 @@ function renderDesa(){
   }
   desaCount.innerHTML = `Menampilkan <b>${filtered.length}</b> dari <b>${DESA_DATA.length}</b> desa/kelurahan.`;
 
-  updateMap(markersDesa, mapDesa, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmdesa,sub:r.nmkec})), 500);
+  updateMap(markersDesa, mapDesa, filtered.map(r=>({lat:r.lat,lng:r.lng,label:r.nmdesa,sub:r.nmkec,id:r.iddesa})), 500, 'desa');
   updateTabBadges();
   saveDesaFilters();
 }
@@ -3488,10 +3525,15 @@ let riwayatRawRows = [];
 let kunjunganRawRows = [];
 
 /* ---------- statistik kunjungan situs (per perangkat) ---------- */
+// "Pengunjung unik" dihitung per-periode: satu deviceId yang sama hanya dihitung sekali dalam
+// periode itu (hari/bulan/triwulan/tahun), sesuai permintaan — bukan jumlah klik/reload.
+let kunjunganChartPeriod = 'harian'; // 'harian' | 'bulanan' | 'triwulanan' | 'tahunan'
+let kunjunganParsedCache = [];
+let kunjunganToday0Cache = null;
+
 function renderKunjunganStats(){
   const box = document.getElementById('kunjunganStatsBox');
   const cardsEl = document.getElementById('kunjunganStatCards');
-  const chartEl = document.getElementById('kunjunganTrendChart');
   if(kunjunganRawRows.length === 0){ box.style.display = 'none'; return; }
   box.style.display = '';
 
@@ -3499,9 +3541,13 @@ function renderKunjunganStats(){
   const startOfDay = (d)=>{ const x = new Date(d); x.setHours(0,0,0,0); return x; };
   const today0 = startOfDay(now);
   const days7 = new Date(today0); days7.setDate(days7.getDate()-6);
-  const days30 = new Date(today0); days30.setDate(days30.getDate()-29);
+  const startOfMonth = new Date(today0.getFullYear(), today0.getMonth(), 1);
+  const startOfQuarter = new Date(today0.getFullYear(), Math.floor(today0.getMonth()/3)*3, 1);
+  const startOfYear = new Date(today0.getFullYear(), 0, 1);
 
   const parsed = kunjunganRawRows.map(r=>({ t: new Date(r.waktu), deviceId: r.deviceId||'-', peran: (r.peran||'umum').toLowerCase() })).filter(r=>!isNaN(r.t));
+  kunjunganParsedCache = parsed;
+  kunjunganToday0Cache = today0;
 
   const countInRange = (from)=> parsed.filter(r=> !from || r.t >= from).length;
   const uniqueDevicesInRange = (from)=> new Set(parsed.filter(r=> !from || r.t >= from).map(r=>r.deviceId)).size;
@@ -3513,25 +3559,102 @@ function renderKunjunganStats(){
     <div class="stat-card"><div class="num">${countInRange(today0)}</div><div class="lbl">Kunjungan hari ini</div></div>
     <div class="stat-card"><div class="num">${countInRange(days7)}</div><div class="lbl">Kunjungan 7 hari terakhir</div></div>
     <div class="stat-card"><div class="num">${countInRange(null)}</div><div class="lbl">Total kunjungan tercatat</div></div>
-    <div class="stat-card"><div class="num">${uniqueDevicesInRange(days30)}</div><div class="lbl">Perangkat unik (30 hari)</div></div>
+    <div class="stat-card"><div class="num">${uniqueDevicesInRange(today0)}</div><div class="lbl">Pengunjung unik hari ini</div></div>
+    <div class="stat-card"><div class="num">${uniqueDevicesInRange(startOfMonth)}</div><div class="lbl">Pengunjung unik bulan ini</div></div>
+    <div class="stat-card"><div class="num">${uniqueDevicesInRange(startOfQuarter)}</div><div class="lbl">Pengunjung unik triwulan ini</div></div>
+    <div class="stat-card"><div class="num">${uniqueDevicesInRange(startOfYear)}</div><div class="lbl">Pengunjung unik tahun ini</div></div>
     <div class="stat-card"><div class="num">${byRole.umum||0}</div><div class="lbl">Dibuka sbg Umum</div></div>
     <div class="stat-card"><div class="num">${(byRole.bps7316||0)+(byRole.admin||0)}</div><div class="lbl">Dibuka Petugas/Admin</div></div>
   `;
 
-  const DAYS = 30;
-  const buckets = [];
-  for(let i=DAYS-1;i>=0;i--){
-    const d = new Date(today0); d.setDate(d.getDate()-i);
-    buckets.push({ key: d.toISOString().slice(0,10), label: d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit'}), total:0, devices: new Set() });
+  renderKunjunganPeriodTabs();
+  renderKunjunganTrendChart();
+}
+
+/* Baris tombol pilihan periode grafik (Harian/Bulanan/Triwulanan/Tahunan) — dibangun sekali saja,
+   lalu dipakai ulang tiap render (cuma gaya tombol aktifnya yang diperbarui). */
+function renderKunjunganPeriodTabs(){
+  const wrap = document.getElementById('kunjunganPeriodTabs');
+  if(!wrap) return;
+  const options = [ ['harian','Harian'], ['bulanan','Bulanan'], ['triwulanan','Triwulanan'], ['tahunan','Tahunan'] ];
+  if(!wrap.dataset.built){
+    wrap.innerHTML = options.map(([key,label])=>
+      `<button type="button" class="btn outline" data-period="${key}" style="padding:4px 10px;font-size:11.5px;">${label}</button>`
+    ).join('');
+    wrap.querySelectorAll('button[data-period]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        kunjunganChartPeriod = btn.getAttribute('data-period');
+        renderKunjunganPeriodTabs();
+        renderKunjunganTrendChart();
+      });
+    });
+    wrap.dataset.built = '1';
   }
-  const byKey = Object.fromEntries(buckets.map(b=>[b.key,b]));
+  wrap.querySelectorAll('button[data-period]').forEach(btn=>{
+    const active = btn.getAttribute('data-period') === kunjunganChartPeriod;
+    btn.style.background = active ? 'var(--moss,#5c7a52)' : 'var(--card-bg,#fff)';
+    btn.style.color = active ? '#fff' : 'var(--ink,#132437)';
+    btn.style.borderColor = active ? 'var(--moss,#5c7a52)' : 'var(--line,#dbe3ec)';
+  });
+}
+
+/* Susun kelompok (bucket) waktu sesuai periode yang dipilih: harian (30 hari), bulanan (12 bulan),
+   triwulanan (8 triwulan ~ 2 tahun), atau tahunan (semua tahun yang ada datanya). */
+function buildKunjunganBuckets(period, parsed, today0){
+  const buckets = [];
+  if(period === 'bulanan'){
+    const N = 12;
+    for(let i=N-1;i>=0;i--){
+      const d = new Date(today0.getFullYear(), today0.getMonth()-i, 1);
+      const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      buckets.push({ key, label: d.toLocaleDateString('id-ID',{month:'short',year:'2-digit'}),
+        matches: (r)=> (r.t.getFullYear()+'-'+String(r.t.getMonth()+1).padStart(2,'0')) === key });
+    }
+  } else if(period === 'triwulanan'){
+    const N = 8; // ~2 tahun terakhir
+    const currentQIndex = today0.getFullYear()*4 + Math.floor(today0.getMonth()/3);
+    for(let i=N-1;i>=0;i--){
+      const qIndex = currentQIndex - i;
+      const y = Math.floor(qIndex/4), q = ((qIndex % 4) + 4) % 4;
+      const key = y + '-Q' + (q+1);
+      buckets.push({ key, label: 'T'+(q+1)+" '"+String(y).slice(2),
+        matches: (r)=> { const ry = r.t.getFullYear(), rq = Math.floor(r.t.getMonth()/3); return (ry+'-Q'+(rq+1)) === key; } });
+    }
+  } else if(period === 'tahunan'){
+    const years = parsed.map(r=>r.t.getFullYear());
+    const minY = years.length ? Math.min(...years) : today0.getFullYear();
+    const maxY = Math.max(today0.getFullYear(), years.length ? Math.max(...years) : today0.getFullYear());
+    for(let y=minY; y<=maxY; y++){
+      buckets.push({ key:String(y), label:String(y), matches:(r)=> r.t.getFullYear() === y });
+    }
+  } else { // harian (default)
+    const N = 30;
+    for(let i=N-1;i>=0;i--){
+      const d = new Date(today0); d.setDate(d.getDate()-i);
+      const key = d.toISOString().slice(0,10);
+      buckets.push({ key, label: d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit'}),
+        matches: (r)=> r.t.toISOString().slice(0,10) === key });
+    }
+  }
+  buckets.forEach(b=>{ b.total = 0; b.devices = new Set(); });
   parsed.forEach(r=>{
-    const key = r.t.toISOString().slice(0,10);
-    const b = byKey[key];
+    const b = buckets.find(bb=>bb.matches(r));
     if(!b) return;
     b.total++;
     b.devices.add(r.deviceId);
   });
+  return buckets;
+}
+
+const KUNJUNGAN_PERIOD_LABEL = { harian:'harian (30 hari terakhir)', bulanan:'bulanan (12 bulan terakhir)', triwulanan:'triwulanan (8 triwulan terakhir)', tahunan:'tahunan (semua tahun tercatat)' };
+
+function renderKunjunganTrendChart(){
+  const chartEl = document.getElementById('kunjunganTrendChart');
+  if(!chartEl) return;
+  const parsed = kunjunganParsedCache, today0 = kunjunganToday0Cache;
+  if(!today0) return;
+  const buckets = buildKunjunganBuckets(kunjunganChartPeriod, parsed, today0);
+
   const W = 760, H = 170, padL = 30, padR = 10, padT = 10, padB = 20;
   const maxVal = Math.max(1, ...buckets.map(b=>b.total));
   const stepX = (W - padL - padR) / (buckets.length - 1 || 1);
@@ -3539,13 +3662,13 @@ function renderKunjunganStats(){
   const xOf = i => padL + stepX * i;
   const lineTotal = buckets.map((b,i)=>`${xOf(i).toFixed(1)},${yOf(b.total).toFixed(1)}`).join(' ');
   const lineDevices = buckets.map((b,i)=>`${xOf(i).toFixed(1)},${yOf(b.devices.size).toFixed(1)}`).join(' ');
-  const showEvery = Math.ceil(buckets.length / 8);
+  const showEvery = Math.max(1, Math.ceil(buckets.length / 8));
   const labels = buckets.map((b,i)=> i % showEvery === 0 ? `<text x="${xOf(i).toFixed(1)}" y="${H-4}" font-size="9" fill="var(--muted)" text-anchor="middle">${b.label}</text>` : '').join('');
   chartEl.innerHTML = `
     <div class="chart-title" style="font-size:11.5px;margin-bottom:2px;">
       <span class="chart-dot" style="background:var(--clay);"></span>Kunjungan
-      <span class="chart-dot" style="background:var(--moss-dark);margin-left:10px;"></span>Perangkat unik
-      <span style="font-weight:400;color:var(--muted);">— harian (30 hari terakhir)</span>
+      <span class="chart-dot" style="background:var(--moss-dark);margin-left:10px;"></span>Pengunjung unik
+      <span style="font-weight:400;color:var(--muted);">— ${KUNJUNGAN_PERIOD_LABEL[kunjunganChartPeriod] || ''}</span>
     </div>
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:200px;" preserveAspectRatio="xMidYMid meet">
       <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="var(--line)" stroke-width="1"/>
