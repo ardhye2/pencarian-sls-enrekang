@@ -372,6 +372,8 @@
         <label class="toggle-label"><input type="checkbox" id="slsRingkas"> Mode ringkas (sembunyikan kolom kode &amp; koordinat)</label>
         <label class="toggle-label"><input type="checkbox" id="slsOnlyUnverified"> ⏳ Hanya tampilkan belum diverifikasi</label>
         <label class="toggle-label"><input type="checkbox" id="slsOnlyNoBoundary"> 🗺️ Hanya tampilkan yang belum ada batas wilayah</label>
+        <label class="toggle-label"><input type="checkbox" id="slsOnlyFavorite"> ⭐ Hanya tampilkan favorit</label>
+        <button class="btn outline" id="slsDistanceSortBtn" type="button" title="Urutkan daftar dari yang terdekat dengan lokasi Anda sekarang (GPS)">🎯 Urutkan dari lokasi saya</button>
         <button class="btn outline" id="slsResetBtn" type="button" title="Kembalikan semua filter ke tampilan awal">✕ Reset Filter</button>
       </div>
     </div>
@@ -2794,9 +2796,64 @@ const slsCount = document.getElementById('slsCount');
 const slsRingkas = document.getElementById('slsRingkas');
 const slsOnlyUnverified = document.getElementById('slsOnlyUnverified');
 const slsOnlyNoBoundary = document.getElementById('slsOnlyNoBoundary');
+const slsOnlyFavorite = document.getElementById('slsOnlyFavorite');
+const slsDistanceSortBtn = document.getElementById('slsDistanceSortBtn');
 const slsBreadcrumb = document.getElementById('slsBreadcrumb');
 const slsSort = {key:null, dir:'asc'};
 let slsFilteredCache = [];
+
+/* ---------- Favorit SLS (ditandai manual, tersimpan permanen di perangkat ini) ---------- */
+let favoriteSlsIds = new Set();
+try { favoriteSlsIds = new Set(JSON.parse(localStorage.getItem('fav_sls_ids') || '[]')); } catch(e){}
+function saveFavoriteSlsIds(){ try{ localStorage.setItem('fav_sls_ids', JSON.stringify([...favoriteSlsIds])); } catch(e){} }
+function toggleFavoriteSls(id, ev){
+  if(ev) ev.stopPropagation();
+  if(favoriteSlsIds.has(id)) favoriteSlsIds.delete(id); else favoriteSlsIds.add(id);
+  saveFavoriteSlsIds();
+  renderSls();
+}
+
+/* ---------- Urutkan dari lokasi saya (GPS) ---------- */
+let slsUserLocation = null; // {lat,lng} setelah GPS berhasil didapat
+function slsDistanceKm(row){
+  if(!slsUserLocation || row.lat==null || row.lng==null || isNaN(row.lat) || isNaN(row.lng)) return null;
+  return haversineKm(slsUserLocation.lat, slsUserLocation.lng, row.lat, row.lng);
+}
+function updateSlsDistanceSortBtnLabel(){
+  const active = slsSort.key === '_distance';
+  slsDistanceSortBtn.textContent = active ? '✕ Matikan urutan jarak' : '🎯 Urutkan dari lokasi saya';
+  slsDistanceSortBtn.classList.toggle('btn', active);
+  slsDistanceSortBtn.classList.toggle('outline', !active);
+}
+slsDistanceSortBtn.addEventListener('click', ()=>{
+  if(slsSort.key === '_distance'){
+    slsSort.key = null;
+    updateSlsDistanceSortBtnLabel();
+    renderSls();
+    return;
+  }
+  if(!navigator.geolocation){ alert('Perangkat/browser ini tidak mendukung layanan lokasi (GPS).'); return; }
+  slsDistanceSortBtn.disabled = true;
+  slsDistanceSortBtn.textContent = '⏳ Mencari lokasi...';
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      slsUserLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      slsSort.key = '_distance'; slsSort.dir = 'asc';
+      slsDistanceSortBtn.disabled = false;
+      updateSlsDistanceSortBtnLabel();
+      renderSls();
+    },
+    (err)=>{
+      slsDistanceSortBtn.disabled = false;
+      updateSlsDistanceSortBtnLabel();
+      let msg = 'Gagal mendapatkan lokasi Anda.';
+      if(err.code === err.PERMISSION_DENIED) msg = 'Izin akses lokasi ditolak. Aktifkan izin GPS untuk situs ini di pengaturan browser/perangkat Anda, lalu coba lagi.';
+      else if(err.code === err.TIMEOUT) msg = 'Waktu mencari lokasi habis. Pastikan GPS aktif dan coba lagi.';
+      alert(msg);
+    },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+});
 
 uniqueSorted(SLS_DATA.map(d=>d.nmkec)).forEach(v=>{
   const o=document.createElement('option'); o.value=v; o.textContent=v; slsKecFilter.appendChild(o);
@@ -2868,11 +2925,20 @@ function renderSls(){
     if(desa && row.nmdesa !== desa) return false;
     if(slsOnlyUnverified.checked && (row.status_verifikasi||'').toUpperCase() !== 'BELUM DIVERIFIKASI') return false;
     if(slsOnlyNoBoundary.checked && slsBoundaryData && findSlsBoundaryFeature(row.kdkec,row.kddesa,row.kdsls,row.kdsubsls)) return false;
+    if(slsOnlyFavorite.checked && !favoriteSlsIds.has(row.id)) return false;
     if(!q) return true;
     const hay = [row.nmsls,row.nmkec,row.nmdesa,row.kdsls,row.kdsubsls,row.idsubsls,row.id].join(' ').toLowerCase();
     return hay.includes(q);
   });
-  if(slsSort.key){
+  if(slsSort.key === '_distance' && slsUserLocation){
+    filtered = [...filtered].sort((a,b)=>{
+      const da = slsDistanceKm(a), db = slsDistanceKm(b);
+      if(da==null && db==null) return 0;
+      if(da==null) return 1; // tanpa koordinat selalu di akhir daftar
+      if(db==null) return -1;
+      return da - db; // selalu dari yang terdekat
+    });
+  } else if(slsSort.key){
     filtered = [...filtered].sort((a,b)=> cmp(a[slsSort.key], b[slsSort.key]) * (slsSort.dir==='asc'?1:-1));
   }
   slsFilteredCache = filtered;
@@ -2888,10 +2954,15 @@ function renderSls(){
         <button class="btn outline" style="margin-top:8px;" onclick="document.getElementById('slsResetBtn').click()">✕ Reset Filter</button>
       </div></td></tr>`;
   } else {
-    const rows = filtered.slice(0,500).map((row,i)=>`
+    const rows = filtered.slice(0,500).map((row,i)=>{
+      const isFav = favoriteSlsIds.has(row.id);
+      const favBtn = `<button type="button" class="action-btn" style="padding:1px 5px;margin-right:4px;" title="${isFav?'Hapus dari favorit':'Tandai favorit'}" onclick="toggleFavoriteSls(${row.id},event)">${isFav?'⭐':'☆'}</button>`;
+      const distKm = (slsSort.key === '_distance') ? slsDistanceKm(row) : null;
+      const distBadge = distKm!=null ? ` <span class="pill" style="background:#e4f3fb;color:#0d6ea8;border:1px solid #a9d8ef;">🎯 ${distKm<1 ? Math.round(distKm*1000)+' m' : distKm.toFixed(1)+' km'}</span>` : '';
+      return `
       <tr class="row-focusable" data-row-id="${row.id}" title="Klik baris untuk menyorot titik di peta" onclick="focusRowOnMap(event,this,'sls',${row.lat},${row.lng},${row.id})">
         <td class="no">${i+1}</td>
-        <td>${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}</td>
+        <td>${favBtn}${highlight(row.nmsls,q)}${dupNameBadge(slsDupFlags,row.id)}${distBadge}</td>
         <td class="col-code">${pad(row.kdkec,3)}</td>
         <td>${highlight(row.nmkec,q)}</td>
         <td class="col-code">${pad(row.kddesa,3)}</td>
@@ -2903,7 +2974,8 @@ function renderSls(){
           <button class="action-btn edit" onclick="openSlsEdit(${row.id})">Edit</button>
           <button class="action-btn del" onclick="deleteSls(${row.id})">Hapus</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     slsBody.innerHTML = rows;
   }
   slsCount.innerHTML = `Menampilkan <b>${Math.min(filtered.length,500)}</b> dari <b>${filtered.length}</b> hasil (total data: <b>${SLS_DATA.length}</b>)${filtered.length>500?' — persempit pencarian untuk melihat semua':''}.`;
