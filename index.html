@@ -714,6 +714,7 @@
         <li>Menu <b>🗺️ Lapisan Peta</b> juga punya centang terpisah untuk <b>Batas Kecamatan</b>, <b>Batas Desa/Kelurahan</b>, dan <b>Batas Kabupaten</b> — garis batas level-level ini dihitung otomatis dengan menggabungkan poligon SLS yang sudah ada (bukan file batas resmi tersendiri), jadi bisa ada sedikit "lubang" di bagian yang SLS-nya belum punya data poligon.</li>
         <li>Di bagian <b>Alat</b> pada menu <b>🗺️ Lapisan Peta</b> ada <b>🖼️ Unduh data per Kecamatan</b> — pilih nama Kecamatan dari daftarnya, lalu: <b>🖼️⬇️</b> untuk gambar peta (PNG, otomatis diperbesar pas ke wilayah itu) atau <b>📄⬇️</b> untuk daftar SLS & Desa di Kecamatan itu (CSV). Centang <b>"Hanya area terpilih (potong sesuai batas)"</b> kalau gambarnya ingin dipotong persis mengikuti bentuk wilayahnya (bagian luar batas diputihkan), bukan kotak persegi biasa. Untuk Dusun/SLS atau Desa/Kelurahan, klik dulu barisnya di tabel (peta otomatis zoom ke sana), baru pakai tombol <b>📷 Simpan Gambar Peta</b> yang sudah ada.</li>
         <li>Tombol <b>🗂️ Unduh Peta Seluruh Kabupaten (PNG)</b> (masih di bagian Alat, dengan centang potong-sesuai-batas yang sama) langsung menghasilkan satu gambar peta seluruh Kabupaten Enrekang lengkap dengan batas SLS, batas Desa, batas Kecamatan, batas Kabupaten, serta titik & nama tiap Kecamatan — semuanya dinyalakan otomatis sesaat untuk keperluan gambar ini, lalu pengaturan centang yang sedang dipakai dikembalikan lagi seperti semula setelah gambarnya terunduh. Setiap gambar peta yang diunduh (per Kecamatan maupun seluruh Kabupaten) otomatis diberi judul, tanggal cetak, dan penanda arah utara di pojoknya.</li>
+        <li>Di tab Dusun/SLS dan Desa/Kelurahan, menu Alat juga punya <b>🖼️ Unduh gambar Dusun/SLS atau Desa/Kelurahan yang ditandai</b> — klik dulu baris mana saja di tabel (atau batas wilayahnya di peta) untuk menandainya, lalu tombol ini akan mengunduh gambar wilayah itu saja, otomatis dipotong sesuai bentuk batasnya (bisa dimatikan lewat centang di bawahnya kalau ingin kotak persegi biasa).</li>
         <li>Garis <b>skala jarak</b> kini selalu tampil di pojok kiri bawah tiap peta, sebagai perkiraan cepat jarak di lapangan tanpa perlu membuka alat ukur.</li>
         <li>Di tab Dusun/SLS, kotak <b>🕘 Baru dilihat</b> (di bawah ringkasan filter) menampilkan sampai 5 SLS terakhir yang ditandai — klik salah satu untuk langsung kembali ke situ tanpa mencari ulang.</li>
         <li>Tepat di bawah centang <b>Batas Kecamatan</b> ada centang <b>🎨 Warna beda tiap Kecamatan</b> — kalau dinyalakan, tiap wilayah Kecamatan diwarnai berbeda-beda (mirip peta administratif berwarna) supaya batasnya langsung kelihatan sekilas tanpa perlu zoom ke garisnya, lengkap dengan <b>legenda nama Kecamatan</b> di pojok kanan bawah peta dan <b>slider transparansi</b> warnanya. Klik area warnanya untuk melihat nama Kecamatan beserta ringkasan jumlah SLS yang sudah/belum diverifikasi dan sudah/belum ada batas wilayahnya.</li>
@@ -1407,6 +1408,8 @@ function createMap(containerId, scrollZoom){
   addMeasureTool(map, containerId, layersMenu.alatSection);
   addLocateMeControl(map, containerId, layersMenu.alatSection);
   addMapSnapshotControl(map, containerId, layersMenu.alatSection);
+  if(containerId === 'slsMap') addSelectedAreaSnapshotTool(map, containerId, layersMenu.alatSection, 'sls');
+  if(containerId === 'desaMap') addSelectedAreaSnapshotTool(map, containerId, layersMenu.alatSection, 'desa');
   addKecamatanSnapshotTool(map, containerId, layersMenu.alatSection);
   addKabupatenSnapshotTool(map, containerId, layersMenu.alatSection);
   wireNearestSlsFallbackClick(map);
@@ -1446,7 +1449,8 @@ function addMapSnapshotControl(map, containerId, section){
    Kabupaten), bukan kotak persegi biasa — bagian di LUAR batas wilayahnya diputihkan. Bekerja dengan
    memproyeksikan tiap titik poligon ke koordinat piksel layar (map.project), lalu dipakai sebagai
    jalur "clip" kanvas. Mendukung Polygon maupun MultiPolygon (termasuk yang berlubang). */
-function clipCanvasToPolygon(map, feature, baseCanvas){
+function clipCanvasToPolygon(map, featureOrFeatures, baseCanvas){
+  const features = Array.isArray(featureOrFeatures) ? featureOrFeatures : [featureOrFeatures];
   const dpr = window.devicePixelRatio || 1;
   const out = document.createElement('canvas');
   out.width = baseCanvas.width; out.height = baseCanvas.height;
@@ -1455,15 +1459,17 @@ function clipCanvasToPolygon(map, feature, baseCanvas){
   ctx.fillRect(0, 0, out.width, out.height);
   ctx.save();
   ctx.beginPath();
-  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
-  polygons.forEach(poly=>{
-    poly.forEach(ring=>{
-      ring.forEach(([lng, lat], i)=>{
-        const pt = map.project([lng, lat]);
-        const x = pt.x * dpr, y = pt.y * dpr;
-        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  features.forEach(feature=>{
+    const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+    polygons.forEach(poly=>{
+      poly.forEach(ring=>{
+        ring.forEach(([lng, lat], i)=>{
+          const pt = map.project([lng, lat]);
+          const x = pt.x * dpr, y = pt.y * dpr;
+          if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
       });
-      ctx.closePath();
     });
   });
   ctx.clip('evenodd');
@@ -1529,6 +1535,44 @@ function finalizeAndDownloadMapImage(map, feature, title, filename, clipToShape)
   a.href = dataUrl;
   a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* Unduh gambar (PNG) peta yang sudah ditandai/dipilih sekarang (satu baris SLS atau Desa yang
+   terakhir diklik di tabel / disorot di peta) — otomatis dipotong sesuai bentuk batas wilayahnya.
+   Memakai map._lastSelection yang diisi applySelectionByRow tiap kali ada SLS/Desa yang ditandai. */
+function addSelectedAreaSnapshotTool(map, containerId, section, kind){
+  if(!section) return;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;padding:6px 2px 2px;';
+  const label = document.createElement('div');
+  label.textContent = kind === 'sls' ? '🖼️ Unduh gambar Dusun/SLS yang ditandai' : '🖼️ Unduh gambar Desa/Kelurahan yang ditandai';
+  label.style.cssText = 'font-size:12.5px;color:var(--ink,#132437);';
+  const dlBtn = makeMenuItemButton('⬇️', 'Unduh (potong sesuai batas)');
+  const clipRow = makeSwitchRow('Hanya area terpilih (potong sesuai batas)', true, ()=>{});
+  clipRow.style.cssText += 'padding:0 0 0 2px;';
+  const clipCheckbox = clipRow.querySelector('input[type="checkbox"]');
+  wrap.appendChild(label); wrap.appendChild(dlBtn); wrap.appendChild(clipRow);
+  section.appendChild(wrap);
+
+  dlBtn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const sel = map._lastSelection;
+    if(!sel){
+      alert(kind === 'sls'
+        ? 'Klik dulu salah satu baris Dusun/SLS di tabel (atau klik batas wilayahnya di peta) untuk memilih wilayahnya.'
+        : 'Klik dulu salah satu baris Desa/Kelurahan di tabel untuk memilih wilayahnya.');
+      return;
+    }
+    setTimeout(()=>{
+      try {
+        const slug = sel.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        finalizeAndDownloadMapImage(map, sel.features, sel.title, `peta_${kind}_${slug}.png`, clipCheckbox.checked);
+      } catch(err){
+        console.error(err);
+        alert('Gagal menyimpan gambar. Coba lagi setelah peta selesai dimuat sepenuhnya.');
+      }
+    }, 150);
+  });
 }
 
 /* Unduh gambar (PNG) peta yang sudah di-"zoom pas" ke satu Kecamatan tertentu — jadi tiap Kecamatan
@@ -2686,6 +2730,14 @@ function applySelectionByRow(kind, rowId, opts){
   }
   if(!hasPoint && boundaryFeatures.length === 0) return; // tidak ada titik maupun batas wilayah yang bisa disorot
   if(kind === 'sls') trackRecentlyViewedSls(row);
+  // Ingat pilihan terakhir (kalau ada poligon batasnya) supaya tombol "Unduh gambar area ini" di
+  // menu Alat tahu wilayah mana yang harus dipotong & diunduh.
+  if(isOwnMap && boundaryFeatures.length > 0){
+    const title = kind === 'sls'
+      ? `SLS ${row.nmsls} (Sub-${pad(row.kdsubsls,2)}), ${row.nmdesa}`
+      : `Desa ${row.nmdesa}, Kec. ${row.nmkec}`;
+    map._lastSelection = { features: boundaryFeatures, title, name: kind==='sls' ? row.nmsls : row.nmdesa };
+  }
 
   if(opts.syncTable !== false && isOwnMap){
     const tbody = document.getElementById(kind==='sls' ? 'slsBody' : 'desaBody');
