@@ -377,6 +377,7 @@
     </div>
 
     <div class="breadcrumb" id="slsBreadcrumb"></div>
+    <div id="slsRecentlyViewed" style="display:none;margin:2px 0 8px;font-size:11.5px;color:var(--muted,#7a8a99);"></div>
 
     <div class="count-line">
       <span id="slsCount"></span>
@@ -711,8 +712,10 @@
         <li>Kalau batas wilayah SLS tersedia, mengklik baris SLS di tabel akan menyorot batas wilayahnya di peta (bukan cuma titik) dan otomatis zoom pas ke batasnya — berlaku juga per sub-SLS untuk dusun yang terbagi beberapa bagian. Lewat menu <b>🗺️ Lapisan Peta</b>, lapisan batas wilayah ini bisa disembunyikan/ditampilkan kapan saja.</li>
         <li>Penandaan ini juga berlaku sebaliknya — <b>klik langsung garis batas SLS atau titik/marker-nya di peta</b> (tanpa harus lewat tabel dulu) akan ikut menyorotnya warna oranye sama seperti klik baris di tabel, dan kalau yang diklik ada di peta tab Dusun/SLS, baris tabelnya otomatis ikut disorot & di-scroll ke situ.</li>
         <li>Menu <b>🗺️ Lapisan Peta</b> juga punya centang terpisah untuk <b>Batas Kecamatan</b>, <b>Batas Desa/Kelurahan</b>, dan <b>Batas Kabupaten</b> — garis batas level-level ini dihitung otomatis dengan menggabungkan poligon SLS yang sudah ada (bukan file batas resmi tersendiri), jadi bisa ada sedikit "lubang" di bagian yang SLS-nya belum punya data poligon.</li>
-        <li>Di bagian <b>Alat</b> pada menu <b>🗺️ Lapisan Peta</b> ada <b>🖼️ Unduh peta per Kecamatan (PNG)</b> — pilih nama Kecamatan dari daftarnya lalu klik ⬇️, peta otomatis diperbesar pas ke wilayah itu lalu gambarnya langsung terunduh. Untuk Dusun/SLS atau Desa/Kelurahan, klik dulu barisnya di tabel (peta otomatis zoom ke sana), baru pakai tombol <b>📷 Simpan Gambar Peta</b> yang sudah ada.</li>
-        <li>Tombol <b>🗂️ Unduh Peta Seluruh Kabupaten (PNG)</b> (masih di bagian Alat) langsung menghasilkan satu gambar peta seluruh Kabupaten Enrekang lengkap dengan batas SLS, batas Desa, batas Kecamatan, batas Kabupaten, serta titik & nama tiap Kecamatan — semuanya dinyalakan otomatis sesaat untuk keperluan gambar ini, lalu pengaturan centang yang sedang dipakai dikembalikan lagi seperti semula setelah gambarnya terunduh.</li>
+        <li>Di bagian <b>Alat</b> pada menu <b>🗺️ Lapisan Peta</b> ada <b>🖼️ Unduh data per Kecamatan</b> — pilih nama Kecamatan dari daftarnya, lalu: <b>🖼️⬇️</b> untuk gambar peta (PNG, otomatis diperbesar pas ke wilayah itu) atau <b>📄⬇️</b> untuk daftar SLS & Desa di Kecamatan itu (CSV). Centang <b>"Hanya area terpilih (potong sesuai batas)"</b> kalau gambarnya ingin dipotong persis mengikuti bentuk wilayahnya (bagian luar batas diputihkan), bukan kotak persegi biasa. Untuk Dusun/SLS atau Desa/Kelurahan, klik dulu barisnya di tabel (peta otomatis zoom ke sana), baru pakai tombol <b>📷 Simpan Gambar Peta</b> yang sudah ada.</li>
+        <li>Tombol <b>🗂️ Unduh Peta Seluruh Kabupaten (PNG)</b> (masih di bagian Alat, dengan centang potong-sesuai-batas yang sama) langsung menghasilkan satu gambar peta seluruh Kabupaten Enrekang lengkap dengan batas SLS, batas Desa, batas Kecamatan, batas Kabupaten, serta titik & nama tiap Kecamatan — semuanya dinyalakan otomatis sesaat untuk keperluan gambar ini, lalu pengaturan centang yang sedang dipakai dikembalikan lagi seperti semula setelah gambarnya terunduh. Setiap gambar peta yang diunduh (per Kecamatan maupun seluruh Kabupaten) otomatis diberi judul, tanggal cetak, dan penanda arah utara di pojoknya.</li>
+        <li>Garis <b>skala jarak</b> kini selalu tampil di pojok kiri bawah tiap peta, sebagai perkiraan cepat jarak di lapangan tanpa perlu membuka alat ukur.</li>
+        <li>Di tab Dusun/SLS, kotak <b>🕘 Baru dilihat</b> (di bawah ringkasan filter) menampilkan sampai 5 SLS terakhir yang ditandai — klik salah satu untuk langsung kembali ke situ tanpa mencari ulang.</li>
         <li>Tepat di bawah centang <b>Batas Kecamatan</b> ada centang <b>🎨 Warna beda tiap Kecamatan</b> — kalau dinyalakan, tiap wilayah Kecamatan diwarnai berbeda-beda (mirip peta administratif berwarna) supaya batasnya langsung kelihatan sekilas tanpa perlu zoom ke garisnya, lengkap dengan <b>legenda nama Kecamatan</b> di pojok kanan bawah peta dan <b>slider transparansi</b> warnanya. Klik area warnanya untuk melihat nama Kecamatan beserta ringkasan jumlah SLS yang sudah/belum diverifikasi dan sudah/belum ada batas wilayahnya.</li>
         <li>Mengklik baris <b>Desa/Kelurahan</b> di tab Cari Koordinat per Desa akan menyorot gabungan semua batas SLS di dalam desa itu sekaligus (karena belum ada file batas Desa tersendiri), sehingga wilayah desanya tetap kelihatan.</li>
         <li>Nama tiap SLS/sub-SLS otomatis muncul di peta begitu di-zoom cukup dekat. Klik langsung pada batas wilayahnya (bukan cuma baris tabel) untuk melihat nama, kode, desa, dan kecamatannya dalam sebuah info kecil (popup).</li>
@@ -1386,6 +1389,7 @@ function createMap(containerId, scrollZoom){
   });
   map.addControl(new maplibregl.NavigationControl({showCompass:true, visualizePitch:true}), 'top-left');
   map.addControl(new maplibregl.FullscreenControl(), 'top-left'); // bertumpuk otomatis di bawah tombol zoom
+  map.addControl(new maplibregl.ScaleControl({maxWidth:110, unit:'metric'}), 'bottom-left'); // skala jarak, selalu tampil
   // Satu panel "Lapisan Peta" (gaya Google Maps) menggabungkan semua kontrol: Jenis Peta (Default/
   // Satelit), Lapisan (batas wilayah SLS, label nama), dan Alat (ukur jarak, lokasi saya, simpan gambar) —
   // supaya peta tidak penuh tombol-tombol kecil terpisah.
@@ -1438,6 +1442,95 @@ function addMapSnapshotControl(map, containerId, section){
   });
 }
 
+/* Potong (clip) hasil tangkapan peta persis mengikuti bentuk satu wilayah (poligon Kecamatan/
+   Kabupaten), bukan kotak persegi biasa — bagian di LUAR batas wilayahnya diputihkan. Bekerja dengan
+   memproyeksikan tiap titik poligon ke koordinat piksel layar (map.project), lalu dipakai sebagai
+   jalur "clip" kanvas. Mendukung Polygon maupun MultiPolygon (termasuk yang berlubang). */
+function clipCanvasToPolygon(map, feature, baseCanvas){
+  const dpr = window.devicePixelRatio || 1;
+  const out = document.createElement('canvas');
+  out.width = baseCanvas.width; out.height = baseCanvas.height;
+  const ctx = out.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.save();
+  ctx.beginPath();
+  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
+  polygons.forEach(poly=>{
+    poly.forEach(ring=>{
+      ring.forEach(([lng, lat], i)=>{
+        const pt = map.project([lng, lat]);
+        const x = pt.x * dpr, y = pt.y * dpr;
+        if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.closePath();
+    });
+  });
+  ctx.clip('evenodd');
+  ctx.drawImage(baseCanvas, 0, 0);
+  ctx.restore();
+  return out;
+}
+
+/* Tambahkan judul, tanggal, dan penanda arah utara sederhana ke kanvas hasil tangkapan peta — supaya
+   gambar yang diunduh langsung terlihat seperti peta cetak resmi, bukan sekadar screenshot polos. */
+function addMapPrintOverlay(canvas, title){
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const pad = 14 * dpr;
+
+  ctx.font = `bold ${15*dpr}px Arial, sans-serif`;
+  const titleW = ctx.measureText(title).width;
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(pad - 8*dpr, pad - 16*dpr, titleW + 16*dpr, 24*dpr);
+  ctx.fillStyle = '#132437';
+  ctx.fillText(title, pad, pad + 2*dpr);
+
+  const tgl = 'Dicetak ' + new Date().toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'});
+  ctx.font = `${11*dpr}px Arial, sans-serif`;
+  const tglW = ctx.measureText(tgl).width;
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.fillRect(pad - 8*dpr, pad + 10*dpr, tglW + 16*dpr, 18*dpr);
+  ctx.fillStyle = '#5a6b78';
+  ctx.fillText(tgl, pad, pad + 22*dpr);
+
+  // Penanda arah utara (lingkaran kecil + anak panah) di pojok kanan atas.
+  const nx = canvas.width - 38*dpr, ny = 48*dpr;
+  ctx.save();
+  ctx.translate(nx, ny);
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  ctx.beginPath(); ctx.arc(0, 0, 22*dpr, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#132437'; ctx.lineWidth = 1.2*dpr; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -16*dpr); ctx.lineTo(6*dpr, 4*dpr); ctx.lineTo(0, -2*dpr); ctx.lineTo(-6*dpr, 4*dpr); ctx.closePath();
+  ctx.fillStyle = '#b0402a'; ctx.fill();
+  ctx.fillStyle = '#132437';
+  ctx.font = `bold ${10*dpr}px Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('U', 0, -18*dpr);
+  ctx.restore();
+}
+
+/* Jalankan proses finalisasi gambar (potong-sesuai-batas opsional + judul/tanggal/arah utara), lalu
+   unduh sebagai PNG. Dipakai bersama oleh tombol unduh per-Kecamatan maupun per-Kabupaten. */
+function finalizeAndDownloadMapImage(map, feature, title, filename, clipToShape){
+  const rawCanvas = map.getCanvas();
+  let outCanvas;
+  if(clipToShape && feature){
+    outCanvas = clipCanvasToPolygon(map, feature, rawCanvas);
+  } else {
+    outCanvas = document.createElement('canvas');
+    outCanvas.width = rawCanvas.width; outCanvas.height = rawCanvas.height;
+    outCanvas.getContext('2d').drawImage(rawCanvas, 0, 0);
+  }
+  addMapPrintOverlay(outCanvas, title);
+  const dataUrl = outCanvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
 /* Unduh gambar (PNG) peta yang sudah di-"zoom pas" ke satu Kecamatan tertentu — jadi tiap Kecamatan
    bisa diunduh terpisah (mirip "Simpan Gambar Peta" tapi otomatis memperbesar ke wilayah pilihan dulu).
    Untuk SLS/Desa, zoom-per-wilayah sudah ada lewat klik baris di tabel; tombol "Simpan Gambar Peta"
@@ -1448,7 +1541,7 @@ function addKecamatanSnapshotTool(map, containerId, section){
   const wrap = document.createElement('div');
   wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px;padding:6px 2px 2px;';
   const label = document.createElement('div');
-  label.textContent = '🖼️ Unduh peta per Kecamatan (PNG)';
+  label.textContent = '🖼️ Unduh data per Kecamatan';
   label.style.cssText = 'font-size:12.5px;color:var(--ink,#132437);';
   const row = document.createElement('div');
   row.style.cssText = 'display:flex;gap:6px;';
@@ -1457,12 +1550,22 @@ function addKecamatanSnapshotTool(map, containerId, section){
   select.innerHTML = '<option value="">Memuat daftar Kecamatan…</option>';
   const dlBtn = document.createElement('button');
   dlBtn.type = 'button';
-  dlBtn.textContent = '⬇️';
-  dlBtn.title = 'Unduh gambar Kecamatan terpilih';
-  dlBtn.style.cssText = 'flex:0 0 auto;border:1px solid var(--line,#dbe3ec);border-radius:6px;background:var(--card-bg,#fff);cursor:pointer;padding:5px 9px;font-size:13px;';
-  [select, dlBtn].forEach(el=> el.addEventListener('click', (e)=> e.stopPropagation()));
-  row.appendChild(select); row.appendChild(dlBtn);
-  wrap.appendChild(label); wrap.appendChild(row);
+  dlBtn.textContent = '🖼️⬇️';
+  dlBtn.title = 'Unduh gambar (PNG) Kecamatan terpilih';
+  dlBtn.style.cssText = 'flex:0 0 auto;border:1px solid var(--line,#dbe3ec);border-radius:6px;background:var(--card-bg,#fff);cursor:pointer;padding:5px 8px;font-size:12px;';
+  const csvBtn = document.createElement('button');
+  csvBtn.type = 'button';
+  csvBtn.textContent = '📄⬇️';
+  csvBtn.title = 'Unduh daftar SLS & Desa Kecamatan terpilih (CSV)';
+  csvBtn.style.cssText = dlBtn.style.cssText;
+  [select, dlBtn, csvBtn].forEach(el=> el.addEventListener('click', (e)=> e.stopPropagation()));
+  row.appendChild(select); row.appendChild(dlBtn); row.appendChild(csvBtn);
+
+  const clipRow = makeSwitchRow('Hanya area terpilih (potong sesuai batas)', false, ()=>{});
+  clipRow.style.padding = '0';
+  const clipCheckbox = clipRow.querySelector('input[type="checkbox"]');
+
+  wrap.appendChild(label); wrap.appendChild(row); wrap.appendChild(clipRow);
   section.appendChild(wrap);
 
   function refreshOptions(){
@@ -1473,15 +1576,22 @@ function addKecamatanSnapshotTool(map, containerId, section){
   map['_refreshKecamatanSnapshotOptions_' + containerId] = refreshOptions;
   refreshOptions();
 
-  dlBtn.addEventListener('click', ()=>{
+  function getSelectedFeature(){
     const code = select.value;
-    if(!code){ alert('Pilih Kecamatan dulu dari daftarnya.'); return; }
+    if(!code){ alert('Pilih Kecamatan dulu dari daftarnya.'); return null; }
     if(typeof turf === 'undefined' || !adminBoundaryLayers.kecamatan){
       alert('Batas wilayah Kecamatan belum siap — tunggu sebentar lalu coba lagi.');
-      return;
+      return null;
     }
     const feature = (adminBoundaryLayers.kecamatan.features || []).find(f => String(f.properties && f.properties._kec) === String(code));
-    if(!feature){ alert('Batas wilayah untuk Kecamatan ini tidak ditemukan.'); return; }
+    if(!feature){ alert('Batas wilayah untuk Kecamatan ini tidak ditemukan.'); return null; }
+    return feature;
+  }
+
+  dlBtn.addEventListener('click', ()=>{
+    const feature = getSelectedFeature();
+    if(!feature) return;
+    const code = select.value;
     const namaKec = select.options[select.selectedIndex].textContent;
     try {
       const bbox = turf.bbox(feature);
@@ -1490,25 +1600,37 @@ function addKecamatanSnapshotTool(map, containerId, section){
       map.once('idle', ()=>{
         setTimeout(()=>{
           try {
-            const dataUrl = map.getCanvas().toDataURL('image/png');
-            const a = document.createElement('a');
-            a.href = dataUrl;
             const slug = namaKec.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-            a.download = `peta_kecamatan_${slug}.png`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            finalizeAndDownloadMapImage(map, feature, 'Peta ' + namaKec, `peta_kecamatan_${slug}.png`, clipCheckbox.checked);
           } catch(err){
             console.error(err);
             alert('Gagal menyimpan gambar peta Kecamatan ini. Coba lagi setelah peta selesai dimuat sepenuhnya.');
           } finally {
-            dlBtn.disabled = false; dlBtn.textContent = '⬇️';
+            dlBtn.disabled = false; dlBtn.textContent = '🖼️⬇️';
           }
         }, 200); // beri jeda sedikit supaya tile peta sempat selesai digambar setelah zoom
       });
     } catch(err){
       console.error(err);
       alert('Gagal memproses batas wilayah Kecamatan ini.');
-      dlBtn.disabled = false; dlBtn.textContent = '⬇️';
+      dlBtn.disabled = false; dlBtn.textContent = '🖼️⬇️';
     }
+  });
+
+  csvBtn.addEventListener('click', ()=>{
+    const code = select.value;
+    if(!code){ alert('Pilih Kecamatan dulu dari daftarnya.'); return; }
+    const namaKec = select.options[select.selectedIndex].textContent;
+    const slsRows = SLS_DATA.filter(r => String(r.kdkec) === String(code));
+    const desaRows = DESA_DATA.filter(r => String(r.kdkec) === String(code));
+    if(!slsRows.length && !desaRows.length){ alert('Tidak ada data SLS/Desa untuk Kecamatan ini.'); return; }
+    const headers = ['Jenis','Nama','Desa/Kelurahan','Kecamatan','Kode SLS','Kode Sub-SLS','Status Verifikasi','Lat','Lng'];
+    const rows = [
+      ...desaRows.map(r => ['Desa/Kelurahan', r.nmdesa, '', r.nmkec, '', '', r.status_verifikasi||'', r.lat??'', r.lng??'']),
+      ...slsRows.map(r => ['Dusun/SLS', r.nmsls, r.nmdesa, r.nmkec, pad(r.kdsls,4), pad(r.kdsubsls,2), r.status_verifikasi||'', r.lat??'', r.lng??''])
+    ];
+    const slug = namaKec.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    downloadCsv(`data_kecamatan_${slug}.csv`, headers, rows);
   });
 }
 
@@ -1520,6 +1642,10 @@ function addKabupatenSnapshotTool(map, containerId, section){
   if(!section) return;
   const btn = makeMenuItemButton('🗂️', 'Unduh Peta Seluruh Kabupaten (PNG)');
   section.appendChild(btn);
+  const clipRow = makeSwitchRow('Hanya area dalam batas (potong sesuai bentuk)', false, ()=>{});
+  clipRow.style.cssText += 'padding:0 0 4px 18px;';
+  section.appendChild(clipRow);
+  const clipCheckbox = clipRow.querySelector('input[type="checkbox"]');
   btn.addEventListener('click', (e)=>{
     e.stopPropagation();
     if(typeof turf === 'undefined' || !adminBoundaryLayers.kabupaten){
@@ -1570,11 +1696,8 @@ function addKabupatenSnapshotTool(map, containerId, section){
       map.once('idle', ()=>{
         setTimeout(()=>{
           try {
-            const dataUrl = map.getCanvas().toDataURL('image/png');
-            const a = document.createElement('a');
-            a.href = dataUrl;
-            a.download = `peta_kabupaten_enrekang_${new Date().toISOString().slice(0,10)}.png`;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            finalizeAndDownloadMapImage(map, feature, 'Peta Kabupaten Enrekang',
+              `peta_kabupaten_enrekang_${new Date().toISOString().slice(0,10)}.png`, clipCheckbox.checked);
           } catch(err){
             console.error(err);
             alert('Gagal menyimpan gambar peta Kabupaten. Coba lagi setelah peta selesai dimuat sepenuhnya.');
@@ -2510,6 +2633,27 @@ function fitToPoints(map, points){
    1. Klik baris di tabel (lewat focusRowOnMap di bawah)
    2. Klik marker/titik-nya langsung di peta (lewat addMarker)
    3. Klik garis batas SLS langsung di peta (lewat wireBoundaryClickPopup) */
+/* "Baru dilihat" — daftar singkat SLS yang terakhir ditandai/dilihat (dari tabel maupun peta),
+   supaya gampang balik ke situ lagi tanpa harus mencari ulang dari awal. Disimpan di memori saja
+   (bukan localStorage), cukup selama sesi berjalan, maksimal 5 entri terbaru. */
+let recentlyViewedSls = [];
+function trackRecentlyViewedSls(row){
+  if(!row) return;
+  recentlyViewedSls = recentlyViewedSls.filter(r=>r.id !== row.id);
+  recentlyViewedSls.unshift({ id: row.id, nmsls: row.nmsls, nmdesa: row.nmdesa, nmkec: row.nmkec });
+  recentlyViewedSls = recentlyViewedSls.slice(0, 5);
+  renderRecentlyViewedSls();
+}
+function renderRecentlyViewedSls(){
+  const box = document.getElementById('slsRecentlyViewed');
+  if(!box) return;
+  if(!recentlyViewedSls.length){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = '🕘 Baru dilihat: ' + recentlyViewedSls.map(r =>
+    `<button type="button" class="btn outline" style="padding:2px 8px;font-size:11px;margin:0 4px 4px 0;" onclick="applySelectionByRow('sls', ${r.id}, {syncTable:true, scrollTable:true, scrollMapIntoView:true})" title="${r.nmdesa}, Kec. ${r.nmkec}">${r.nmsls}</button>`
+  ).join('');
+}
+
 let _focusedMarker = null;
 function applySelectionByRow(kind, rowId, opts){
   opts = opts || {};
@@ -2541,6 +2685,7 @@ function applySelectionByRow(kind, rowId, opts){
     }
   }
   if(!hasPoint && boundaryFeatures.length === 0) return; // tidak ada titik maupun batas wilayah yang bisa disorot
+  if(kind === 'sls') trackRecentlyViewedSls(row);
 
   if(opts.syncTable !== false && isOwnMap){
     const tbody = document.getElementById(kind==='sls' ? 'slsBody' : 'desaBody');
